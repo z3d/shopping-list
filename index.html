@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1a1a2e">
-<meta name="app-version" content="2.0.1">
+<meta name="app-version" content="2.1.0">
 <title>Shopping List</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -93,12 +93,24 @@ html, body {
 .list-badge.partial { background: rgba(251,191,36,0.15); color: var(--warning); }
 .list-badge.empty { background: var(--surface); color: var(--text-dim); }
 
-/* Item rows */
-.item-row {
-  display: flex; align-items: center; gap: 10px;
-  padding: 10px 12px; border-bottom: 1px solid var(--border);
-  transition: background 0.15s, opacity 0.3s;
+/* Item rows — swipe wrapper */
+.item-wrap {
+  position: relative; overflow: hidden;
+  border-bottom: 1px solid var(--border);
 }
+.item-delete-bg {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 80px;
+  background: var(--danger); display: none; align-items: center;
+  justify-content: center; color: white; font-size: 14px; font-weight: 600;
+}
+.item-wrap.swiped .item-delete-bg { display: flex; }
+.item-row {
+  position: relative; display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; background: linear-gradient(135deg, var(--bg) 0%, var(--bg2) 100%);
+  transition: transform 0.2s ease, opacity 0.3s;
+  will-change: transform;
+}
+.item-row.swiping { transition: none; }
 .item-row.checked { opacity: 0.5; }
 .item-row.unselected { opacity: 0.4; }
 .item-check {
@@ -826,7 +838,17 @@ html, body {
           actionsHtml2;
       }
 
-      el.itemsContainer.appendChild(row);
+      // Wrap in swipe container for maker
+      if (isMaker()) {
+        var wrap = document.createElement('div');
+        wrap.className = 'item-wrap';
+        wrap.setAttribute('data-id', item.id);
+        wrap.innerHTML = '<div class="item-delete-bg">Delete</div>';
+        wrap.appendChild(row);
+        el.itemsContainer.appendChild(wrap);
+      } else {
+        el.itemsContainer.appendChild(row);
+      }
     }
   }
 
@@ -1205,6 +1227,105 @@ html, body {
         var val = e.target.value || '1';
         updateItemQty(id, val);
       }
+    });
+
+    // Swipe-to-delete for maker
+    var swipeState = { wrap: null, row: null, startX: 0, startY: 0, dx: 0, swiping: false };
+    var SWIPE_THRESHOLD = 70;
+
+    el.itemsContainer.addEventListener('touchstart', function(e) {
+      if (!isMaker()) return;
+      var wrap = e.target.closest('.item-wrap');
+      if (!wrap) return;
+      var row = wrap.querySelector('.item-row');
+      if (!row) return;
+      var t = e.touches[0];
+      swipeState.wrap = wrap;
+      swipeState.row = row;
+      swipeState.startX = t.clientX;
+      swipeState.startY = t.clientY;
+      swipeState.dx = 0;
+      swipeState.swiping = false;
+    }, { passive: true });
+
+    el.itemsContainer.addEventListener('touchmove', function(e) {
+      if (!swipeState.row) return;
+      var t = e.touches[0];
+      var dx = t.clientX - swipeState.startX;
+      var dy = t.clientY - swipeState.startY;
+
+      // Only swipe left, and only if horizontal movement dominates
+      if (!swipeState.swiping) {
+        if (Math.abs(dy) > Math.abs(dx)) { swipeState.row = null; return; }
+        if (dx < -10) swipeState.swiping = true;
+        else return;
+      }
+
+      e.preventDefault();
+      swipeState.dx = Math.min(0, dx);
+      swipeState.row.classList.add('swiping');
+      swipeState.row.style.transform = 'translateX(' + swipeState.dx + 'px)';
+    }, { passive: false });
+
+    el.itemsContainer.addEventListener('touchend', function(e) {
+      if (!swipeState.row) return;
+      var row = swipeState.row;
+      var wrap = swipeState.wrap;
+      row.classList.remove('swiping');
+
+      if (swipeState.dx < -SWIPE_THRESHOLD) {
+        // Snap open to reveal delete
+        wrap.classList.add('swiped');
+        row.style.transform = 'translateX(-80px)';
+        // Tap delete bg to confirm
+        var deleteBg = wrap.querySelector('.item-delete-bg');
+        if (deleteBg) {
+          deleteBg.onclick = function() {
+            var itemId = parseInt(wrap.getAttribute('data-id'));
+            swipeDeleteItem(itemId, wrap);
+          };
+        }
+      } else {
+        // Snap back
+        row.style.transform = '';
+      }
+
+      swipeState.row = null;
+      swipeState.wrap = null;
+    }, { passive: true });
+
+    // Close any open swipe when tapping elsewhere
+    document.addEventListener('touchstart', function(e) {
+      if (!e.target.closest('.item-wrap')) {
+        var open = el.itemsContainer.querySelectorAll('.item-wrap.swiped');
+        for (var i = 0; i < open.length; i++) {
+          open[i].classList.remove('swiped');
+          var r = open[i].querySelector('.item-row');
+          if (r) r.style.transform = '';
+        }
+      }
+    }, { passive: true });
+  }
+
+  function swipeDeleteItem(itemId, wrapEl) {
+    api('DELETE', '/api/lists/' + currentListId + '/items/' + itemId, null, function(err) {
+      if (err) { toast('Error: ' + err); return; }
+      // Animate out
+      wrapEl.style.transition = 'height 0.2s, opacity 0.2s';
+      wrapEl.style.height = wrapEl.offsetHeight + 'px';
+      requestAnimationFrame(function() {
+        wrapEl.style.height = '0';
+        wrapEl.style.opacity = '0';
+        wrapEl.style.overflow = 'hidden';
+      });
+      setTimeout(function() {
+        // Remove from data
+        for (var i = 0; i < currentItems.length; i++) {
+          if (currentItems[i].id === itemId) { currentItems.splice(i, 1); break; }
+        }
+        renderItems();
+        toast('Item deleted');
+      }, 250);
     });
   }
 
