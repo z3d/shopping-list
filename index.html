@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1a1a2e">
-<meta name="app-version" content="1.0.0">
+<meta name="app-version" content="1.1.0">
 <title>Shopping List</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -110,7 +110,15 @@ html, body {
 .item-info { flex: 1; min-width: 0; }
 .item-name { font-size: 15px; font-weight: 500; }
 .item-name.checked { text-decoration: line-through; color: var(--text-dim); }
-.item-qty { font-size: 13px; color: var(--text-dim); }
+.item-qty-badge {
+  min-width: 28px; height: 28px; border-radius: 8px;
+  background: var(--surface); color: var(--text);
+  font-size: 14px; font-weight: 600; display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0;
+  padding: 0 6px;
+}
+.item-qty-badge.multi { background: rgba(96,165,250,0.2); color: var(--blue); }
+.item-detail { font-size: 13px; color: var(--text-dim); }
 .item-category {
   font-size: 11px; padding: 2px 8px; border-radius: 10px;
   background: var(--surface); color: var(--text-dim); white-space: nowrap;
@@ -330,7 +338,8 @@ html, body {
     </div>
 
     <div class="quick-add" id="quickAddBar">
-      <input type="text" id="quickAddInput" placeholder="Add item... (e.g. 2kg chicken)">
+      <input type="number" id="quickAddQty" placeholder="Qty" value="1" min="1" style="width:60px;flex:none;text-align:center">
+      <input type="text" id="quickAddInput" placeholder="Add item...">
       <button class="add-item-btn" id="quickAddBtn">Add</button>
     </div>
 
@@ -514,6 +523,7 @@ html, body {
     el.totalCount = document.getElementById('totalCount');
     el.progressFill = document.getElementById('progressFill');
     el.quickAddBar = document.getElementById('quickAddBar');
+    el.quickAddQty = document.getElementById('quickAddQty');
     el.quickAddInput = document.getElementById('quickAddInput');
     el.quickAddBtn = document.getElementById('quickAddBtn');
     el.itemsContainer = document.getElementById('itemsContainer');
@@ -729,12 +739,11 @@ html, body {
       row.className = 'item-row' + (item.checked ? ' checked' : '');
       row.setAttribute('data-id', item.id);
 
-      var qtyText = '';
-      if (item.quantity) {
-        qtyText = item.quantity + (item.unit ? ' ' + item.unit : '');
-      }
+      var qty = item.quantity || '1';
+      var isMulti = parseInt(qty) > 1 || qty.indexOf('.') !== -1;
+      var qtyLabel = qty + (item.unit ? ' ' + item.unit : '');
 
-      var notesText = item.notes ? ' &middot; ' + escHtml(item.notes) : '';
+      var detailText = item.notes || '';
 
       var catBadge = '';
       if (!category && item.category) {
@@ -750,9 +759,10 @@ html, body {
 
       row.innerHTML =
         '<button class="item-check' + (item.checked ? ' checked' : '') + '" data-id="' + item.id + '">&#10003;</button>' +
+        '<span class="item-qty-badge' + (isMulti ? ' multi' : '') + '">' + escHtml(qtyLabel) + '</span>' +
         '<div class="item-info">' +
           '<div class="item-name' + (item.checked ? ' checked' : '') + '">' + escHtml(item.name) + '</div>' +
-          (qtyText || notesText ? '<div class="item-qty">' + escHtml(qtyText) + notesText + '</div>' : '') +
+          (detailText ? '<div class="item-detail">' + escHtml(detailText) + '</div>' : '') +
         '</div>' +
         catBadge +
         actionsHtml;
@@ -794,42 +804,20 @@ html, body {
 
   /* ── Quick Add ── */
   function quickAddItem() {
-    var raw = el.quickAddInput.value.trim();
-    if (!raw) return;
+    var name = el.quickAddInput.value.trim();
+    if (!name) return;
 
-    // Parse "2kg chicken" or "3 x milk" patterns
-    var parsed = parseItemInput(raw);
+    var qty = el.quickAddQty.value || '1';
+    var item = { name: name, quantity: qty, unit: '', category: '', notes: '' };
 
-    api('POST', '/api/lists/' + currentListId + '/items', parsed, function(err, data) {
+    api('POST', '/api/lists/' + currentListId + '/items', item, function(err, data) {
       if (err) { toast('Error: ' + err); return; }
       el.quickAddInput.value = '';
+      el.quickAddQty.value = '1';
       currentItems.push(data);
       renderItems();
+      el.quickAddInput.focus();
     });
-  }
-
-  function parseItemInput(raw) {
-    var result = { name: raw, quantity: '', unit: '', category: '', notes: '' };
-
-    // Try patterns like "2kg chicken", "3 x milk", "500ml cream", "2 chicken"
-    var m = raw.match(/^(\d+(?:\.\d+)?)\s*(kg|g|ml|l|L|pack|packs|bunch|bunches|dozen|doz|x)\s+(.+)$/i);
-    if (m) {
-      result.quantity = m[1];
-      result.unit = m[2].toLowerCase();
-      result.name = m[3];
-      if (result.unit === 'x') { result.unit = ''; }
-      return result;
-    }
-
-    // "2 chicken" (just a number prefix)
-    var m2 = raw.match(/^(\d+(?:\.\d+)?)\s+(.+)$/);
-    if (m2) {
-      result.quantity = m2[1];
-      result.name = m2[2];
-      return result;
-    }
-
-    return result;
   }
 
   /* ── List CRUD ── */
