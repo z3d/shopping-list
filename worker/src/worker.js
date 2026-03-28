@@ -1,6 +1,10 @@
 /**
  * Shopping List API Worker
  * Cloudflare Worker with D1 database
+ *
+ * Lists can be templates (is_template=1) or shopping lists (is_template=0).
+ * Template items use `selected` field + `quantity` for the maker to pick items.
+ * POST /api/lists/:id/create-shop copies selected items to a new dated list.
  */
 
 function json(data, status, cors) {
@@ -42,11 +46,12 @@ export default {
         const result = await env.DB.prepare(`
           SELECT l.*,
             COUNT(i.id) as item_count,
-            SUM(CASE WHEN i.checked = 1 THEN 1 ELSE 0 END) as checked_count
+            SUM(CASE WHEN i.checked = 1 THEN 1 ELSE 0 END) as checked_count,
+            SUM(CASE WHEN i.selected = 1 THEN 1 ELSE 0 END) as selected_count
           FROM lists l
           LEFT JOIN items i ON i.list_id = l.id
           GROUP BY l.id
-          ORDER BY l.updated_at DESC
+          ORDER BY l.is_template DESC, l.updated_at DESC
         `).all();
         return json({ lists: result.results }, 200, cors);
       }
@@ -57,8 +62,13 @@ export default {
         const id = parseInt(listMatch[1]);
         const list = await env.DB.prepare('SELECT * FROM lists WHERE id = ?').bind(id).first();
         if (!list) return json({ error: 'Not found' }, 404, cors);
+
+        const orderBy = list.is_template
+          ? 'ORDER BY category ASC, name ASC'
+          : 'ORDER BY checked ASC, category ASC, name ASC';
+
         const items = await env.DB.prepare(
-          'SELECT * FROM items WHERE list_id = ? ORDER BY checked ASC, category ASC, name ASC'
+          'SELECT * FROM items WHERE list_id = ? ' + orderBy
         ).bind(id).all();
         return json({ list, items: items.results }, 200, cors);
       }
@@ -71,6 +81,55 @@ export default {
         }
       }
 
+      // --- Create shopping list from template ---
+      const createShopMatch = path.match(/^\/api\/lists\/(\d+)\/create-shop$/);
+      if (createShopMatch && request.method === 'POST') {
+        const templateId = parseInt(createShopMatch[1]);
+
+        // Verify it's a template
+        const template = await env.DB.prepare('SELECT * FROM lists WHERE id = ? AND is_template = 1')
+          .bind(templateId).first();
+        if (!template) return json({ error: 'Template not found' }, 404, cors);
+
+        // Get selected items
+        const selected = await env.DB.prepare(
+          'SELECT * FROM items WHERE list_id = ? AND selected = 1'
+        ).bind(templateId).all();
+
+        if (!selected.results.length) {
+          return json({ error: 'No items selected' }, 400, cors);
+        }
+
+        // Create dated list
+        const body = request.headers.get('content-type')?.includes('json')
+          ? await request.json() : {};
+        const today = new Date().toISOString().split('T')[0];
+        const listName = body.name || (template.name + ' — ' + today);
+
+        const result = await env.DB.prepare(
+          'INSERT INTO lists (name, is_template) VALUES (?, 0)'
+        ).bind(listName).run();
+        const newListId = result.meta.last_row_id;
+
+        // Copy selected items
+        for (const item of selected.results) {
+          await env.DB.prepare(
+            'INSERT INTO items (list_id, name, quantity, unit, category, notes) VALUES (?, ?, ?, ?, ?, ?)'
+          ).bind(newListId, item.name, item.quantity, item.unit, item.category, item.notes).run();
+        }
+
+        // Reset selected state on template
+        await env.DB.prepare(
+          'UPDATE items SET selected = 0 WHERE list_id = ?'
+        ).bind(templateId).run();
+
+        return json({
+          id: newListId,
+          name: listName,
+          item_count: selected.results.length
+        }, 201, cors);
+      }
+
       // --- List CRUD ---
 
       // Create list
@@ -79,10 +138,11 @@ export default {
         if (!body.name || !body.name.trim()) {
           return json({ error: 'Name is required' }, 400, cors);
         }
+        const isTemplate = body.is_template ? 1 : 0;
         const result = await env.DB.prepare(
-          'INSERT INTO lists (name) VALUES (?)'
-        ).bind(body.name.trim()).run();
-        return json({ id: result.meta.last_row_id, name: body.name.trim() }, 201, cors);
+          'INSERT INTO lists (name, is_template) VALUES (?, ?)'
+        ).bind(body.name.trim(), isTemplate).run();
+        return json({ id: result.meta.last_row_id, name: body.name.trim(), is_template: isTemplate }, 201, cors);
       }
 
       // Update list
@@ -119,17 +179,17 @@ export default {
         }
 
         const result = await env.DB.prepare(
-          'INSERT INTO items (list_id, name, quantity, unit, category, notes) VALUES (?, ?, ?, ?, ?, ?)'
+          'INSERT INTO items (list_id, name, quantity, unit, category, notes, selected) VALUES (?, ?, ?, ?, ?, ?, ?)'
         ).bind(
           listId,
           body.name.trim(),
           body.quantity || '',
           body.unit || '',
           body.category || '',
-          body.notes || ''
+          body.notes || '',
+          body.selected ? 1 : 0
         ).run();
 
-        // Update list timestamp
         await env.DB.prepare("UPDATE lists SET updated_at = datetime('now') WHERE id = ?").bind(listId).run();
 
         const created = await env.DB.prepare('SELECT * FROM items WHERE id = ?')
@@ -137,7 +197,7 @@ export default {
         return json(created, 201, cors);
       }
 
-      // Update item (including check/uncheck)
+      // Update item (check/uncheck, select/deselect, quantity, or full update)
       if (itemMatch && request.method === 'PUT') {
         const listId = parseInt(itemMatch[1]);
         const itemId = parseInt(itemMatch[2]);
@@ -147,17 +207,34 @@ export default {
           .bind(itemId, listId).first();
         if (!existing) return json({ error: 'Not found' }, 404, cors);
 
-        // If only toggling checked status
-        if (body.checked !== undefined && !body.name) {
+        // Toggle checked (shopper checking off)
+        if (body.checked !== undefined && !body.name && body.selected === undefined && body.quantity === undefined) {
           await env.DB.prepare(
             'UPDATE items SET checked = ?, checked_by = ? WHERE id = ?'
-          ).bind(
-            body.checked ? 1 : 0,
-            body.checked_by || '',
-            itemId
-          ).run();
-        } else {
-          // Full item update
+          ).bind(body.checked ? 1 : 0, body.checked_by || '', itemId).run();
+        }
+        // Toggle selected (maker picking for shop list)
+        else if (body.selected !== undefined && !body.name && body.checked === undefined) {
+          const updates = ['selected = ?'];
+          const values = [body.selected ? 1 : 0];
+          // Allow updating quantity at the same time as selecting
+          if (body.quantity !== undefined) {
+            updates.push('quantity = ?');
+            values.push(body.quantity);
+          }
+          values.push(itemId);
+          await env.DB.prepare(
+            'UPDATE items SET ' + updates.join(', ') + ' WHERE id = ?'
+          ).bind(...values).run();
+        }
+        // Inline quantity update only
+        else if (body.quantity !== undefined && !body.name && body.checked === undefined && body.selected === undefined) {
+          await env.DB.prepare(
+            'UPDATE items SET quantity = ? WHERE id = ?'
+          ).bind(body.quantity, itemId).run();
+        }
+        // Full item update
+        else {
           await env.DB.prepare(
             'UPDATE items SET name = ?, quantity = ?, unit = ?, category = ?, notes = ? WHERE id = ?'
           ).bind(
@@ -171,7 +248,6 @@ export default {
         }
 
         await env.DB.prepare("UPDATE lists SET updated_at = datetime('now') WHERE id = ?").bind(listId).run();
-
         const updated = await env.DB.prepare('SELECT * FROM items WHERE id = ?').bind(itemId).first();
         return json(updated, 200, cors);
       }
@@ -199,7 +275,6 @@ export default {
         let listItems = [];
         try { listItems = JSON.parse(listItemsRaw || '[]'); } catch (e) {}
 
-        // Build image blocks
         const imageBlocks = [];
         for (const file of files) {
           const buf = await file.arrayBuffer();
@@ -216,7 +291,6 @@ export default {
           });
         }
 
-        // Build item list for matching context
         const itemListText = listItems.map(function(item) {
           let desc = item.name;
           if (item.quantity) desc = item.quantity + (item.unit ? ' ' + item.unit : '') + ' ' + desc;
@@ -274,8 +348,6 @@ Rules:
 
         const claudeData = await claudeResp.json();
         let text = claudeData.content?.[0]?.text || '';
-
-        // Strip code fences
         const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
         if (fenceMatch) text = fenceMatch[1].trim();
 

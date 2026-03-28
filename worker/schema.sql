@@ -3,6 +3,7 @@
 CREATE TABLE IF NOT EXISTS lists (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT NOT NULL,
+  is_template INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -17,6 +18,7 @@ CREATE TABLE IF NOT EXISTS items (
   notes TEXT DEFAULT '',
   checked INTEGER DEFAULT 0,
   checked_by TEXT DEFAULT '',
+  selected INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now')),
   FOREIGN KEY (list_id) REFERENCES lists(id) ON DELETE CASCADE
 );

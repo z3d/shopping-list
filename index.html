@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1a1a2e">
-<meta name="app-version" content="1.2.0">
+<meta name="app-version" content="2.0.0">
 <title>Shopping List</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -47,9 +47,7 @@ html, body {
   background: linear-gradient(135deg, var(--bg) 0%, var(--bg2) 100%);
   padding: 12px 0 8px; margin-bottom: 8px;
 }
-.header-top {
-  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
-}
+.header-top { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .header h1 { font-size: 20px; font-weight: 600; flex: 1; }
 
 /* Role badge */
@@ -71,6 +69,12 @@ html, body {
 }
 .icon-btn:hover { background: var(--surface-hover); }
 
+/* Section label */
+.section-label {
+  font-size: 11px; text-transform: uppercase; letter-spacing: 1px;
+  color: var(--text-dim); padding: 16px 12px 4px; font-weight: 600;
+}
+
 /* List rows */
 .list-row {
   display: flex; align-items: center; gap: 12px;
@@ -81,21 +85,22 @@ html, body {
 .list-row:active { background: rgba(255,255,255,0.12); }
 .list-name { flex: 1; font-size: 16px; font-weight: 500; }
 .list-meta { color: var(--text-dim); font-size: 13px; white-space: nowrap; }
-.list-progress {
-  font-size: 12px; padding: 2px 8px; border-radius: 10px;
-  font-weight: 500;
+.list-badge {
+  font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: 500;
 }
-.list-progress.done { background: var(--accent-dim); color: var(--accent); }
-.list-progress.partial { background: rgba(251,191,36,0.15); color: var(--warning); }
-.list-progress.empty { background: var(--surface); color: var(--text-dim); }
+.list-badge.template { background: rgba(96,165,250,0.15); color: var(--blue); }
+.list-badge.done { background: var(--accent-dim); color: var(--accent); }
+.list-badge.partial { background: rgba(251,191,36,0.15); color: var(--warning); }
+.list-badge.empty { background: var(--surface); color: var(--text-dim); }
 
 /* Item rows */
 .item-row {
-  display: flex; align-items: center; gap: 12px;
-  padding: 12px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
   transition: background 0.15s, opacity 0.3s;
 }
 .item-row.checked { opacity: 0.5; }
+.item-row.unselected { opacity: 0.4; }
 .item-check {
   width: 28px; height: 28px; border-radius: 50%;
   border: 2px solid var(--border); background: transparent;
@@ -104,12 +109,24 @@ html, body {
   -webkit-tap-highlight-color: transparent; font-size: 14px;
 }
 .item-check:hover { border-color: var(--accent); }
-.item-check.checked {
-  background: var(--accent); border-color: var(--accent); color: #111;
-}
+.item-check.checked { background: var(--accent); border-color: var(--accent); color: #111; }
+.item-check.selected { background: var(--blue); border-color: var(--blue); color: #fff; }
 .item-info { flex: 1; min-width: 0; }
 .item-name { font-size: 15px; font-weight: 500; }
 .item-name.checked { text-decoration: line-through; color: var(--text-dim); }
+.item-detail { font-size: 13px; color: var(--text-dim); }
+
+/* Inline qty input */
+.item-qty-inline {
+  width: 48px; height: 32px; border-radius: 8px; border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font-size: 14px;
+  font-weight: 600; text-align: center; outline: none;
+  -webkit-appearance: none; -moz-appearance: textfield;
+}
+.item-qty-inline:focus { border-color: var(--blue); }
+.item-qty-inline::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+/* Qty badge (for shop lists / shopper view) */
 .item-qty-badge {
   min-width: 28px; height: 28px; border-radius: 8px;
   background: var(--surface); color: var(--text);
@@ -118,7 +135,7 @@ html, body {
   padding: 0 6px;
 }
 .item-qty-badge.multi { background: rgba(96,165,250,0.2); color: var(--blue); }
-.item-detail { font-size: 13px; color: var(--text-dim); }
+
 .item-category {
   font-size: 11px; padding: 2px 8px; border-radius: 10px;
   background: var(--surface); color: var(--text-dim); white-space: nowrap;
@@ -139,9 +156,7 @@ html, body {
 }
 
 /* Detail header */
-.detail-header {
-  display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
-}
+.detail-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
 .detail-header h2 { flex: 1; font-size: 22px; font-weight: 600; }
 .back-btn {
   background: none; border: none; color: var(--accent);
@@ -151,16 +166,13 @@ html, body {
 }
 
 /* Quick add bar */
-.quick-add {
-  display: flex; gap: 8px; margin-bottom: 12px;
-}
-.quick-add input {
-  flex: 1; padding: 10px 14px; border-radius: var(--radius);
+.quick-add { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.quick-add input, .quick-add select {
+  padding: 10px 12px; border-radius: var(--radius);
   border: 1px solid var(--border); background: var(--surface);
-  color: var(--text); font-size: 15px; outline: none;
-  -webkit-appearance: none;
+  color: var(--text); font-size: 14px; outline: none; -webkit-appearance: none;
 }
-.quick-add input:focus { border-color: var(--accent); }
+.quick-add input:focus, .quick-add select:focus { border-color: var(--accent); }
 .quick-add input::placeholder { color: var(--text-dim); }
 .add-item-btn {
   padding: 10px 16px; border-radius: var(--radius); border: none;
@@ -186,10 +198,19 @@ html, body {
   transition: width 0.3s ease;
 }
 
-/* Empty state */
-.empty-state {
-  text-align: center; color: var(--text-dim); padding: 60px 20px; font-size: 15px;
+/* Create shop button */
+.create-shop-btn {
+  position: sticky; bottom: 16px; width: 100%; padding: 14px;
+  border-radius: var(--radius); border: none;
+  background: var(--accent); color: #111; font-size: 16px;
+  font-weight: 700; cursor: pointer; margin-top: 16px;
+  box-shadow: 0 4px 20px rgba(74,222,128,0.3);
 }
+.create-shop-btn:hover { background: var(--accent-hover); }
+.create-shop-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* Empty state */
+.empty-state { text-align: center; color: var(--text-dim); padding: 60px 20px; font-size: 15px; }
 
 /* Forms */
 .form-group { margin-bottom: 14px; }
@@ -222,13 +243,10 @@ html, body {
 .overlay.active { display: flex; }
 .panel {
   background: var(--bg2); border-radius: 16px 16px 0 0;
-  padding: 24px; width: 100%; max-width: 700px; max-height: 80vh;
-  overflow-y: auto;
+  padding: 24px; width: 100%; max-width: 700px; max-height: 80vh; overflow-y: auto;
 }
 .panel h2 { margin-bottom: 16px; font-size: 18px; }
-.panel-actions {
-  display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap;
-}
+.panel-actions { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
 .panel-actions button {
   flex: 1; min-width: 120px; padding: 10px; border-radius: var(--radius);
   border: none; font-size: 14px; cursor: pointer; font-weight: 500;
@@ -254,7 +272,6 @@ html, body {
 .scan-banner-text { color: var(--text); font-size: 14px; }
 
 /* Scan results */
-.scan-results { margin-top: 12px; }
 .scan-match {
   display: flex; align-items: center; gap: 10px;
   padding: 10px 12px; border-bottom: 1px solid var(--border);
@@ -274,21 +291,16 @@ html, body {
 }
 .toast.show { opacity: 1; }
 
-/* Loading */
 .loading { text-align: center; padding: 40px; color: var(--text-dim); }
-
-/* Hide file inputs */
 .file-input { display: none; }
-
-/* Views */
 .view { display: none; }
 .view.active { display: block; }
 
-/* Safe area for notched phones */
 @supports (padding: env(safe-area-inset-top)) {
   .header { padding-top: calc(12px + env(safe-area-inset-top)); }
   .app { padding-left: calc(16px + env(safe-area-inset-left)); padding-right: calc(16px + env(safe-area-inset-right)); }
   .toast { bottom: calc(20px + env(safe-area-inset-bottom)); }
+  .create-shop-btn { bottom: calc(16px + env(safe-area-inset-bottom)); }
 }
 
 @media (max-width: 480px) {
@@ -321,13 +333,13 @@ html, body {
     <div class="loading" id="listsLoading">Loading...</div>
   </div>
 
-  <!-- LIST DETAIL VIEW -->
+  <!-- LIST DETAIL VIEW (templates + shop lists) -->
   <div id="listDetailView" class="view">
     <div class="header">
       <div class="detail-header">
         <button class="back-btn" id="backToListsBtn">&#8592; Back</button>
         <h2 id="listTitle"></h2>
-        <button class="icon-btn" id="scanReceiptBtn" title="Scan receipt">&#128247;</button>
+        <button class="icon-btn" id="scanReceiptBtn" title="Scan receipt" style="display:none">&#128247;</button>
         <button class="icon-btn" id="editListBtn" title="Edit list">&#9998;</button>
       </div>
     </div>
@@ -337,10 +349,10 @@ html, body {
       <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
     </div>
 
-    <div class="quick-add" id="quickAddBar" style="flex-wrap:wrap">
+    <div class="quick-add" id="quickAddBar">
       <input type="number" id="quickAddQty" placeholder="Qty" value="1" min="1" style="width:60px;flex:none;text-align:center">
       <input type="text" id="quickAddInput" placeholder="Add item..." style="flex:1;min-width:120px">
-      <select id="quickAddCategory" style="width:auto;flex:none;padding:10px 8px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;-webkit-appearance:none">
+      <select id="quickAddCategory" style="flex:none">
         <option value="">No category</option>
         <option value="Fruit & Veg">Fruit & Veg</option>
         <option value="Meat & Seafood">Meat & Seafood</option>
@@ -358,9 +370,9 @@ html, body {
     </div>
 
     <div id="itemsContainer"></div>
-    <div class="empty-state" id="itemsEmpty" style="display:none">
-      No items yet. Add some above.
-    </div>
+    <div class="empty-state" id="itemsEmpty" style="display:none">No items yet.</div>
+
+    <button class="create-shop-btn" id="createShopBtn" style="display:none">Create Shopping List</button>
   </div>
 
   <!-- ADD/EDIT LIST FORM -->
@@ -372,6 +384,11 @@ html, body {
     <div class="form-group">
       <label>List Name</label>
       <input type="text" id="listNameInput" placeholder="e.g. Weekly Groceries">
+    </div>
+    <div class="form-group" id="templateCheckGroup">
+      <label style="display:flex;align-items:center;gap:8px;text-transform:none;font-size:15px;color:var(--text);cursor:pointer">
+        <input type="checkbox" id="listTemplateCheck" style="width:20px;height:20px"> This is a template (master item list)
+      </label>
     </div>
     <button class="submit-btn" id="saveListBtn">Save List</button>
     <button class="btn-danger" id="deleteListBtn" style="width:100%;padding:12px;border-radius:var(--radius);border:none;font-size:14px;cursor:pointer;margin-top:12px;display:none">Delete List</button>
@@ -470,19 +487,11 @@ html, body {
 
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
-
-<!-- HIDDEN FILE INPUT -->
 <input type="file" class="file-input" id="receiptFileInput" accept="image/*" multiple>
 
 <script>
 (function() {
-  /* ── Config ── */
-  var config = {
-    workerUrl: '',
-    token: '',
-    role: 'maker'
-  };
-
+  var config = { workerUrl: '', token: '', role: 'maker' };
   var STORAGE_KEY = 'shopping_list_config';
   var currentListId = null;
   var currentItems = [];
@@ -491,7 +500,6 @@ html, body {
   var editingListId = null;
   var scanMatches = [];
 
-  /* ── Load/Save Config ── */
   function loadConfig() {
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
@@ -502,7 +510,6 @@ html, body {
         config.role = parsed.role || 'maker';
       }
     } catch (e) {}
-    // Auto-detect worker URL on workers.dev
     if (!config.workerUrl && window.location.hostname.indexOf('.workers.dev') !== -1) {
       config.workerUrl = window.location.origin;
     }
@@ -512,7 +519,6 @@ html, body {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(config)); } catch (e) {}
   }
 
-  /* ── DOM References ── */
   var el = {};
   function initElements() {
     el.listsView = document.getElementById('listsView');
@@ -543,9 +549,12 @@ html, body {
     el.quickAddBtn = document.getElementById('quickAddBtn');
     el.itemsContainer = document.getElementById('itemsContainer');
     el.itemsEmpty = document.getElementById('itemsEmpty');
+    el.createShopBtn = document.getElementById('createShopBtn');
 
     el.listFormTitle = document.getElementById('listFormTitle');
     el.listNameInput = document.getElementById('listNameInput');
+    el.listTemplateCheck = document.getElementById('listTemplateCheck');
+    el.templateCheckGroup = document.getElementById('templateCheckGroup');
     el.saveListBtn = document.getElementById('saveListBtn');
     el.deleteListBtn = document.getElementById('deleteListBtn');
     el.cancelListFormBtn = document.getElementById('cancelListFormBtn');
@@ -577,16 +586,12 @@ html, body {
     el.toast = document.getElementById('toast');
   }
 
-  /* ── View Management ── */
-  function showView(viewEl) {
+  function showView(v) {
     var views = document.querySelectorAll('.view');
-    for (var i = 0; i < views.length; i++) {
-      views[i].classList.remove('active');
-    }
-    viewEl.classList.add('active');
+    for (var i = 0; i < views.length; i++) views[i].classList.remove('active');
+    v.classList.add('active');
   }
 
-  /* ── Toast ── */
   var toastTimer = null;
   function toast(msg) {
     el.toast.textContent = msg;
@@ -595,36 +600,25 @@ html, body {
     toastTimer = setTimeout(function() { el.toast.classList.remove('show'); }, 3000);
   }
 
-  /* ── API Helper ── */
   function api(method, path, body, cb) {
-    if (!config.workerUrl) {
-      toast('Set Worker URL in settings first');
-      return;
-    }
+    if (!config.workerUrl) { toast('Set Worker URL in settings first'); return; }
     var xhr = new XMLHttpRequest();
     xhr.open(method, config.workerUrl + path);
     xhr.setRequestHeader('Content-Type', 'application/json');
-    if (config.token) {
-      xhr.setRequestHeader('X-Dashboard-Token', config.token);
-    }
+    if (config.token) xhr.setRequestHeader('X-Dashboard-Token', config.token);
     xhr.onload = function() {
       try {
         var data = JSON.parse(xhr.responseText);
-        if (xhr.status >= 200 && xhr.status < 300) {
-          cb(null, data);
-        } else {
-          cb(data.error || 'Request failed');
-        }
-      } catch (e) {
-        cb('Invalid response');
-      }
+        if (xhr.status >= 200 && xhr.status < 300) cb(null, data);
+        else cb(data.error || 'Request failed');
+      } catch (e) { cb('Invalid response'); }
     };
     xhr.onerror = function() { cb('Network error'); };
     xhr.send(body ? JSON.stringify(body) : null);
   }
 
-  /* ── Role ── */
   function isMaker() { return config.role === 'maker'; }
+  function isTemplate() { return currentList && currentList.is_template; }
 
   function updateRoleBadge() {
     el.roleBadge.textContent = isMaker() ? 'MAKER' : 'SHOPPER';
@@ -633,10 +627,19 @@ html, body {
 
   function updateRoleUI() {
     updateRoleBadge();
-    // Hide maker-only controls in shopper mode
     el.addListBtn.style.display = isMaker() ? '' : 'none';
+  }
+
+  function updateDetailUI() {
+    var tpl = isTemplate();
+    // Maker sees: add bar + edit on templates; scan + edit on shop lists
+    // Shopper sees: scan on shop lists only
+    el.quickAddBar.style.display = (isMaker() && tpl) ? '' : 'none';
     el.editListBtn.style.display = isMaker() ? '' : 'none';
-    el.quickAddBar.style.display = isMaker() ? '' : 'none';
+    el.scanReceiptBtn.style.display = (!tpl) ? '' : 'none';
+    el.createShopBtn.style.display = (isMaker() && tpl) ? '' : 'none';
+    // Summary bar: templates show selected count, shop lists show checked count
+    el.summaryBar.style.display = '';
   }
 
   /* ── Lists View ── */
@@ -648,8 +651,17 @@ html, body {
       el.listsLoading.style.display = 'none';
       if (err) { toast('Error: ' + err); return; }
       var lists = data.lists || [];
+      // Shopper only sees non-template lists
+      if (!isMaker()) {
+        var filtered = [];
+        for (var i = 0; i < lists.length; i++) {
+          if (!lists[i].is_template) filtered.push(lists[i]);
+        }
+        lists = filtered;
+      }
       if (lists.length === 0) {
         el.listsEmpty.style.display = 'block';
+        el.listsEmpty.textContent = isMaker() ? 'No lists yet. Tap + to create one.' : 'No shopping lists yet.';
         return;
       }
       renderLists(lists);
@@ -658,20 +670,38 @@ html, body {
 
   function renderLists(lists) {
     el.listsList.innerHTML = '';
+    var lastWasTemplate = null;
+
     for (var i = 0; i < lists.length; i++) {
       var li = lists[i];
+
+      // Section headers for maker
+      if (isMaker() && li.is_template !== lastWasTemplate) {
+        var label = document.createElement('div');
+        label.className = 'section-label';
+        label.textContent = li.is_template ? 'Templates' : 'Shopping Lists';
+        el.listsList.appendChild(label);
+        lastWasTemplate = li.is_template;
+      }
+
       var row = document.createElement('li');
       row.className = 'list-row';
       row.setAttribute('data-id', li.id);
 
       var total = li.item_count || 0;
-      var checked = li.checked_count || 0;
-      var pctClass = total === 0 ? 'empty' : (checked === total ? 'done' : 'partial');
-      var pctText = total === 0 ? 'Empty' : checked + '/' + total;
+      var badgeHtml = '';
+      if (li.is_template) {
+        var sel = li.selected_count || 0;
+        badgeHtml = '<span class="list-badge template">' + sel + ' selected</span>';
+      } else {
+        var checked = li.checked_count || 0;
+        var cls = total === 0 ? 'empty' : (checked === total ? 'done' : 'partial');
+        var txt = total === 0 ? 'Empty' : checked + '/' + total;
+        badgeHtml = '<span class="list-badge ' + cls + '">' + txt + '</span>';
+      }
 
       row.innerHTML = '<div class="list-name">' + escHtml(li.name) + '</div>' +
-        '<span class="list-progress ' + pctClass + '">' + pctText + '</span>' +
-        '<span class="list-meta">&#9656;</span>';
+        badgeHtml + '<span class="list-meta">&#9656;</span>';
 
       (function(id) {
         row.addEventListener('click', function() { openList(id); });
@@ -685,7 +715,6 @@ html, body {
   function openList(id) {
     currentListId = id;
     showView(el.listDetailView);
-    updateRoleUI();
     el.listTitle.textContent = 'Loading...';
     el.itemsContainer.innerHTML = '';
     el.itemsEmpty.style.display = 'none';
@@ -695,6 +724,7 @@ html, body {
       currentList = data.list;
       currentItems = data.items || [];
       el.listTitle.textContent = currentList.name;
+      updateDetailUI();
       renderItems();
     });
   }
@@ -714,25 +744,20 @@ html, body {
     for (var i = 0; i < currentItems.length; i++) {
       var item = currentItems[i];
       var cat = item.category || '';
-      if (!cat) {
-        uncategorised.push(item);
-      } else {
+      if (!cat) uncategorised.push(item);
+      else {
         if (!categories[cat]) categories[cat] = [];
         categories[cat].push(item);
       }
     }
 
-    // Sort categories alphabetically
     var catKeys = [];
     for (var k in categories) {
       if (categories.hasOwnProperty(k)) catKeys.push(k);
     }
     catKeys.sort();
 
-    // Render uncategorised first, then categories
-    if (uncategorised.length > 0) {
-      renderItemGroup('', uncategorised);
-    }
+    if (uncategorised.length > 0) renderItemGroup('', uncategorised);
     for (var c = 0; c < catKeys.length; c++) {
       renderItemGroup(catKeys[c], categories[catKeys[c]]);
     }
@@ -748,39 +773,58 @@ html, body {
       el.itemsContainer.appendChild(header);
     }
 
+    var tpl = isTemplate();
+
     for (var i = 0; i < items.length; i++) {
       var item = items[i];
       var row = document.createElement('div');
-      row.className = 'item-row' + (item.checked ? ' checked' : '');
       row.setAttribute('data-id', item.id);
 
-      var qty = item.quantity || '1';
-      var isMulti = parseInt(qty) > 1 || qty.indexOf('.') !== -1;
-      var qtyLabel = qty + (item.unit ? ' ' + item.unit : '');
+      if (tpl) {
+        // TEMPLATE VIEW: select toggle + inline qty
+        var sel = item.selected ? true : false;
+        row.className = 'item-row' + (sel ? '' : ' unselected');
 
-      var detailText = item.notes || '';
+        var actionsHtml = '';
+        if (isMaker()) {
+          actionsHtml = '<div class="item-actions">' +
+            '<button class="item-action-btn edit-item-btn" data-id="' + item.id + '" title="Edit">&#9998;</button>' +
+            '</div>';
+        }
 
-      var catBadge = '';
-      if (!category && item.category) {
-        catBadge = '<span class="item-category">' + escHtml(item.category) + '</span>';
+        row.innerHTML =
+          '<button class="item-check' + (sel ? ' selected' : '') + '" data-id="' + item.id + '">&#10003;</button>' +
+          '<input type="number" class="item-qty-inline" data-id="' + item.id + '" value="' + escHtml(item.quantity || '1') + '" min="1"' + (isMaker() ? '' : ' disabled') + '>' +
+          '<div class="item-info">' +
+            '<div class="item-name">' + escHtml(item.name) + '</div>' +
+            (item.notes ? '<div class="item-detail">' + escHtml(item.notes) + '</div>' : '') +
+          '</div>' +
+          actionsHtml;
+      } else {
+        // SHOP LIST VIEW: check toggle + qty badge (read-only)
+        var checked = item.checked ? true : false;
+        row.className = 'item-row' + (checked ? ' checked' : '');
+
+        var qty = item.quantity || '1';
+        var isMulti = parseInt(qty) > 1;
+        var qtyLabel = qty + (item.unit ? ' ' + item.unit : '');
+
+        var actionsHtml2 = '';
+        if (isMaker()) {
+          actionsHtml2 = '<div class="item-actions">' +
+            '<button class="item-action-btn edit-item-btn" data-id="' + item.id + '" title="Edit">&#9998;</button>' +
+            '</div>';
+        }
+
+        row.innerHTML =
+          '<button class="item-check' + (checked ? ' checked' : '') + '" data-id="' + item.id + '">&#10003;</button>' +
+          '<span class="item-qty-badge' + (isMulti ? ' multi' : '') + '">' + escHtml(qtyLabel) + '</span>' +
+          '<div class="item-info">' +
+            '<div class="item-name' + (checked ? ' checked' : '') + '">' + escHtml(item.name) + '</div>' +
+            (item.notes ? '<div class="item-detail">' + escHtml(item.notes) + '</div>' : '') +
+          '</div>' +
+          actionsHtml2;
       }
-
-      var actionsHtml = '';
-      if (isMaker()) {
-        actionsHtml = '<div class="item-actions">' +
-          '<button class="item-action-btn edit-item-btn" data-id="' + item.id + '" title="Edit">&#9998;</button>' +
-          '</div>';
-      }
-
-      row.innerHTML =
-        '<button class="item-check' + (item.checked ? ' checked' : '') + '" data-id="' + item.id + '">&#10003;</button>' +
-        '<span class="item-qty-badge' + (isMulti ? ' multi' : '') + '">' + escHtml(qtyLabel) + '</span>' +
-        '<div class="item-info">' +
-          '<div class="item-name' + (item.checked ? ' checked' : '') + '">' + escHtml(item.name) + '</div>' +
-          (detailText ? '<div class="item-detail">' + escHtml(detailText) + '</div>' : '') +
-        '</div>' +
-        catBadge +
-        actionsHtml;
 
       el.itemsContainer.appendChild(row);
     }
@@ -788,28 +832,68 @@ html, body {
 
   function updateSummary() {
     var total = currentItems.length;
-    var checked = 0;
-    for (var i = 0; i < currentItems.length; i++) {
-      if (currentItems[i].checked) checked++;
+    if (isTemplate()) {
+      var sel = 0;
+      for (var i = 0; i < currentItems.length; i++) {
+        if (currentItems[i].selected) sel++;
+      }
+      el.checkedCount.textContent = sel;
+      el.totalCount.textContent = total;
+      var pct = total > 0 ? Math.round((sel / total) * 100) : 0;
+      el.progressFill.style.width = pct + '%';
+      el.createShopBtn.textContent = 'Create Shopping List (' + sel + ' items)';
+      el.createShopBtn.disabled = sel === 0;
+    } else {
+      var chk = 0;
+      for (var j = 0; j < currentItems.length; j++) {
+        if (currentItems[j].checked) chk++;
+      }
+      el.checkedCount.textContent = chk;
+      el.totalCount.textContent = total;
+      var pct2 = total > 0 ? Math.round((chk / total) * 100) : 0;
+      el.progressFill.style.width = pct2 + '%';
     }
-    el.checkedCount.textContent = checked;
-    el.totalCount.textContent = total;
-    var pct = total > 0 ? Math.round((checked / total) * 100) : 0;
-    el.progressFill.style.width = pct + '%';
   }
 
-  /* ── Toggle Check ── */
+  /* ── Toggle Select (template) ── */
+  function toggleSelect(itemId) {
+    var item = null;
+    for (var i = 0; i < currentItems.length; i++) {
+      if (currentItems[i].id === itemId) { item = currentItems[i]; break; }
+    }
+    if (!item) return;
+    var newSel = item.selected ? 0 : 1;
+    api('PUT', '/api/lists/' + currentListId + '/items/' + itemId, {
+      selected: newSel
+    }, function(err) {
+      if (err) { toast('Error: ' + err); return; }
+      item.selected = newSel;
+      renderItems();
+    });
+  }
+
+  /* ── Inline Qty Change (template) ── */
+  function updateItemQty(itemId, qty) {
+    api('PUT', '/api/lists/' + currentListId + '/items/' + itemId, {
+      quantity: qty
+    }, function(err) {
+      if (err) { toast('Error: ' + err); return; }
+      for (var i = 0; i < currentItems.length; i++) {
+        if (currentItems[i].id === itemId) { currentItems[i].quantity = qty; break; }
+      }
+    });
+  }
+
+  /* ── Toggle Check (shop list) ── */
   function toggleCheck(itemId) {
     var item = null;
     for (var i = 0; i < currentItems.length; i++) {
       if (currentItems[i].id === itemId) { item = currentItems[i]; break; }
     }
     if (!item) return;
-
     var newChecked = item.checked ? 0 : 1;
     api('PUT', '/api/lists/' + currentListId + '/items/' + itemId, {
-      checked: newChecked,
-      checked_by: config.role
+      checked: newChecked, checked_by: config.role
     }, function(err) {
       if (err) { toast('Error: ' + err); return; }
       item.checked = newChecked;
@@ -817,11 +901,19 @@ html, body {
     });
   }
 
+  /* ── Create Shopping List from Template ── */
+  function createShopList() {
+    api('POST', '/api/lists/' + currentListId + '/create-shop', {}, function(err, data) {
+      if (err) { toast('Error: ' + err); return; }
+      toast('Shopping list created: ' + data.name);
+      openList(data.id);
+    });
+  }
+
   /* ── Quick Add ── */
   function quickAddItem() {
     var name = el.quickAddInput.value.trim();
     if (!name) return;
-
     var qty = el.quickAddQty.value || '1';
     var cat = el.quickAddCategory.value || '';
     var item = { name: name, quantity: qty, unit: '', category: cat, notes: '' };
@@ -841,13 +933,14 @@ html, body {
     editingListId = listId || null;
     el.listFormTitle.textContent = editingListId ? 'Edit List' : 'New List';
     el.listNameInput.value = '';
+    el.listTemplateCheck.checked = false;
     el.deleteListBtn.style.display = editingListId ? 'block' : 'none';
     el.saveListBtn.textContent = editingListId ? 'Update List' : 'Create List';
+    el.templateCheckGroup.style.display = editingListId ? 'none' : '';
 
     if (editingListId && currentList) {
       el.listNameInput.value = currentList.name;
     }
-
     showView(el.listFormView);
     el.listNameInput.focus();
   }
@@ -864,7 +957,8 @@ html, body {
         openList(editingListId);
       });
     } else {
-      api('POST', '/api/lists', { name: name }, function(err, data) {
+      var body = { name: name, is_template: el.listTemplateCheck.checked };
+      api('POST', '/api/lists', body, function(err, data) {
         if (err) { toast('Error: ' + err); return; }
         toast('List created');
         openList(data.id);
@@ -908,7 +1002,6 @@ html, body {
         }
       }
     }
-
     showView(el.itemFormView);
     el.itemNameInput.focus();
   }
@@ -916,23 +1009,20 @@ html, body {
   function saveItem() {
     var name = el.itemNameInput.value.trim();
     if (!name) { toast('Enter an item name'); return; }
-
     var body = {
-      name: name,
-      quantity: el.itemQtyInput.value.trim(),
-      unit: el.itemUnitInput.value.trim(),
-      category: el.itemCategorySelect.value,
+      name: name, quantity: el.itemQtyInput.value.trim(),
+      unit: el.itemUnitInput.value.trim(), category: el.itemCategorySelect.value,
       notes: el.itemNotesInput.value.trim()
     };
 
     if (editingItemId) {
-      api('PUT', '/api/lists/' + currentListId + '/items/' + editingItemId, body, function(err, data) {
+      api('PUT', '/api/lists/' + currentListId + '/items/' + editingItemId, body, function(err) {
         if (err) { toast('Error: ' + err); return; }
         toast('Item updated');
         openList(currentListId);
       });
     } else {
-      api('POST', '/api/lists/' + currentListId + '/items', body, function(err, data) {
+      api('POST', '/api/lists/' + currentListId + '/items', body, function(err) {
         if (err) { toast('Error: ' + err); return; }
         toast('Item added');
         openList(currentListId);
@@ -951,89 +1041,55 @@ html, body {
   }
 
   /* ── Receipt Scanning ── */
-  function startScan() {
-    el.receiptFileInput.click();
-  }
+  function startScan() { el.receiptFileInput.click(); }
 
   function handleReceiptFiles(files) {
     if (!files || files.length === 0) return;
-
     el.scanBanner.classList.add('active');
     el.scanBannerText.textContent = 'Scanning ' + files.length + ' receipt(s)...';
 
     var formData = new FormData();
-    for (var i = 0; i < files.length; i++) {
-      formData.append('photos', files[i]);
-    }
+    for (var i = 0; i < files.length; i++) formData.append('photos', files[i]);
 
-    // Include current list items so the worker can match
     var itemNames = [];
     for (var j = 0; j < currentItems.length; j++) {
-      itemNames.push({
-        id: currentItems[j].id,
-        name: currentItems[j].name,
-        quantity: currentItems[j].quantity,
-        unit: currentItems[j].unit
-      });
+      itemNames.push({ id: currentItems[j].id, name: currentItems[j].name, quantity: currentItems[j].quantity, unit: currentItems[j].unit });
     }
     formData.append('list_items', JSON.stringify(itemNames));
 
     var xhr = new XMLHttpRequest();
     xhr.open('POST', config.workerUrl + '/api/scan-receipt');
-    if (config.token) {
-      xhr.setRequestHeader('X-Dashboard-Token', config.token);
-    }
+    if (config.token) xhr.setRequestHeader('X-Dashboard-Token', config.token);
     xhr.onload = function() {
       el.scanBanner.classList.remove('active');
       try {
         var data = JSON.parse(xhr.responseText);
-        if (xhr.status >= 200 && xhr.status < 300) {
-          showScanResults(data);
-        } else {
-          toast('Scan error: ' + (data.error || 'Unknown'));
-        }
-      } catch (e) {
-        toast('Invalid scan response');
-      }
+        if (xhr.status >= 200 && xhr.status < 300) showScanResults(data);
+        else toast('Scan error: ' + (data.error || 'Unknown'));
+      } catch (e) { toast('Invalid scan response'); }
     };
-    xhr.onerror = function() {
-      el.scanBanner.classList.remove('active');
-      toast('Scan network error');
-    };
+    xhr.onerror = function() { el.scanBanner.classList.remove('active'); toast('Scan network error'); };
     xhr.send(formData);
   }
 
   function showScanResults(data) {
     scanMatches = data.matches || [];
     var unmatched = data.unmatched || [];
-
     var html = '';
     if (scanMatches.length > 0) {
       html += '<div class="category-header">Matched Items</div>';
       for (var i = 0; i < scanMatches.length; i++) {
         var m = scanMatches[i];
-        html += '<div class="scan-match">' +
-          '<span class="scan-match-icon" style="color:var(--accent)">&#10003;</span>' +
-          '<div class="scan-match-info">' +
-            '<div class="scan-match-name">' + escHtml(m.list_item_name) + '</div>' +
-            '<div class="scan-match-detail">Receipt: ' + escHtml(m.receipt_item) +
-              (m.price ? ' &mdash; $' + m.price : '') + '</div>' +
-          '</div></div>';
+        html += '<div class="scan-match"><span class="scan-match-icon" style="color:var(--accent)">&#10003;</span><div class="scan-match-info"><div class="scan-match-name">' + escHtml(m.list_item_name) + '</div><div class="scan-match-detail">Receipt: ' + escHtml(m.receipt_item) + (m.price ? ' &mdash; $' + m.price : '') + '</div></div></div>';
       }
     }
-
     if (unmatched.length > 0) {
       html += '<div class="category-header" style="color:var(--text-dim)">Not on List</div>';
       for (var u = 0; u < unmatched.length; u++) {
-        html += '<div class="scan-unmatched">' + escHtml(unmatched[u].name) +
-          (unmatched[u].price ? ' &mdash; $' + unmatched[u].price : '') + '</div>';
+        html += '<div class="scan-unmatched">' + escHtml(unmatched[u].name) + (unmatched[u].price ? ' &mdash; $' + unmatched[u].price : '') + '</div>';
       }
     }
-
-    if (scanMatches.length === 0 && unmatched.length === 0) {
-      html = '<div class="empty-state">No items found on receipt.</div>';
-    }
-
+    if (!scanMatches.length && !unmatched.length) html = '<div class="empty-state">No items found on receipt.</div>';
     el.scanResultsContent.innerHTML = html;
     el.applyScanBtn.style.display = scanMatches.length > 0 ? '' : 'none';
     showView(el.scanResultsView);
@@ -1041,22 +1097,17 @@ html, body {
 
   function applyScanMatches() {
     if (scanMatches.length === 0) return;
-
     var remaining = scanMatches.length;
     var errors = 0;
-
     for (var i = 0; i < scanMatches.length; i++) {
       (function(match) {
         api('PUT', '/api/lists/' + currentListId + '/items/' + match.list_item_id, {
-          checked: 1,
-          checked_by: 'receipt_scan'
+          checked: 1, checked_by: 'receipt_scan'
         }, function(err) {
           if (err) errors++;
           remaining--;
           if (remaining === 0) {
-            var msg = (scanMatches.length - errors) + ' items checked off';
-            if (errors > 0) msg += ' (' + errors + ' errors)';
-            toast(msg);
+            toast((scanMatches.length - errors) + ' items checked off');
             openList(currentListId);
           }
         });
@@ -1083,23 +1134,21 @@ html, body {
     fetchLists();
   }
 
-  function closeSettings() {
-    el.settingsOverlay.classList.remove('active');
-  }
+  function closeSettings() { el.settingsOverlay.classList.remove('active'); }
 
-  /* ── Utility ── */
   function escHtml(str) {
     if (!str) return '';
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  /* ── Event Delegation ── */
+  /* ── Events ── */
   function initEvents() {
     el.roleBadge.addEventListener('click', function() {
       config.role = isMaker() ? 'shopper' : 'maker';
       saveConfig();
       updateRoleUI();
-      if (currentListId) renderItems();
+      showView(el.listsView);
+      fetchLists();
       toast('Switched to ' + config.role + ' mode');
     });
 
@@ -1107,36 +1156,21 @@ html, body {
     el.settingsBtn.addEventListener('click', openSettings);
     el.saveSettingsBtn.addEventListener('click', saveSettings);
     el.closeSettingsBtn.addEventListener('click', closeSettings);
+    el.settingsOverlay.addEventListener('click', function(e) { if (e.target === el.settingsOverlay) closeSettings(); });
 
-    el.settingsOverlay.addEventListener('click', function(e) {
-      if (e.target === el.settingsOverlay) closeSettings();
-    });
-
-    el.backToListsBtn.addEventListener('click', function() {
-      showView(el.listsView);
-      fetchLists();
-    });
-
+    el.backToListsBtn.addEventListener('click', function() { showView(el.listsView); fetchLists(); });
     el.editListBtn.addEventListener('click', function() { openListForm(currentListId); });
     el.scanReceiptBtn.addEventListener('click', startScan);
-
-    el.receiptFileInput.addEventListener('change', function() {
-      handleReceiptFiles(this.files);
-      this.value = '';
-    });
+    el.receiptFileInput.addEventListener('change', function() { handleReceiptFiles(this.files); this.value = ''; });
 
     el.quickAddBtn.addEventListener('click', quickAddItem);
-    el.quickAddInput.addEventListener('keydown', function(e) {
-      if (e.key === 'Enter' || e.keyCode === 13) quickAddItem();
-    });
+    el.quickAddInput.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.keyCode === 13) quickAddItem(); });
+
+    el.createShopBtn.addEventListener('click', createShopList);
 
     el.cancelListFormBtn.addEventListener('click', function() {
-      if (currentListId) {
-        openList(currentListId);
-      } else {
-        showView(el.listsView);
-        fetchLists();
-      }
+      if (currentListId) openList(currentListId);
+      else { showView(el.listsView); fetchLists(); }
     });
     el.saveListBtn.addEventListener('click', saveList);
     el.deleteListBtn.addEventListener('click', deleteList);
@@ -1148,62 +1182,57 @@ html, body {
     el.closeScanResultsBtn.addEventListener('click', function() { openList(currentListId); });
     el.applyScanBtn.addEventListener('click', applyScanMatches);
 
-    // Event delegation for item clicks
+    // Event delegation for items
+    var qtyTimer = null;
     el.itemsContainer.addEventListener('click', function(e) {
-      // Check button
       var checkBtn = e.target.closest('.item-check');
       if (checkBtn) {
         var id = parseInt(checkBtn.getAttribute('data-id'));
-        toggleCheck(id);
+        if (isTemplate()) toggleSelect(id);
+        else toggleCheck(id);
         return;
       }
-
-      // Edit button
       var editBtn = e.target.closest('.edit-item-btn');
       if (editBtn) {
-        var itemId = parseInt(editBtn.getAttribute('data-id'));
-        openItemForm(itemId);
+        openItemForm(parseInt(editBtn.getAttribute('data-id')));
         return;
+      }
+    });
+
+    el.itemsContainer.addEventListener('change', function(e) {
+      if (e.target.classList.contains('item-qty-inline')) {
+        var id = parseInt(e.target.getAttribute('data-id'));
+        var val = e.target.value || '1';
+        updateItemQty(id, val);
       }
     });
   }
 
-  /* ── Auto-update ── */
   function checkVersion() {
     var meta = document.querySelector('meta[name="app-version"]');
     if (!meta) return;
-    var currentVersion = meta.getAttribute('content');
-    var storedVersion = localStorage.getItem('shopping_list_version');
-    if (storedVersion && storedVersion !== currentVersion) {
-      localStorage.setItem('shopping_list_version', currentVersion);
-      window.location.reload();
-      return;
-    }
-    localStorage.setItem('shopping_list_version', currentVersion);
+    var v = meta.getAttribute('content');
+    var stored = localStorage.getItem('shopping_list_version');
+    if (stored && stored !== v) { localStorage.setItem('shopping_list_version', v); window.location.reload(); return; }
+    localStorage.setItem('shopping_list_version', v);
   }
 
-  /* ── Init ── */
   function init() {
     loadConfig();
     initElements();
     updateRoleUI();
     initEvents();
     checkVersion();
-
-    if (config.workerUrl) {
-      fetchLists();
-    } else {
+    if (config.workerUrl) fetchLists();
+    else {
       el.listsLoading.style.display = 'none';
       el.listsEmpty.style.display = 'block';
       el.listsEmpty.textContent = 'Set your Worker URL in settings to get started.';
     }
   }
 
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', init);
-  } else {
-    init();
-  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
 })();
 </script>
 </body>
