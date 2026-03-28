@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1a1a2e">
-<meta name="app-version" content="1.1.0">
+<meta name="app-version" content="1.2.0">
 <title>Shopping List</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -337,9 +337,23 @@ html, body {
       <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
     </div>
 
-    <div class="quick-add" id="quickAddBar">
+    <div class="quick-add" id="quickAddBar" style="flex-wrap:wrap">
       <input type="number" id="quickAddQty" placeholder="Qty" value="1" min="1" style="width:60px;flex:none;text-align:center">
-      <input type="text" id="quickAddInput" placeholder="Add item...">
+      <input type="text" id="quickAddInput" placeholder="Add item..." style="flex:1;min-width:120px">
+      <select id="quickAddCategory" style="width:auto;flex:none;padding:10px 8px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);color:var(--text);font-size:14px;-webkit-appearance:none">
+        <option value="">No category</option>
+        <option value="Fruit & Veg">Fruit & Veg</option>
+        <option value="Meat & Seafood">Meat & Seafood</option>
+        <option value="Dairy & Eggs">Dairy & Eggs</option>
+        <option value="Bakery">Bakery</option>
+        <option value="Pantry">Pantry</option>
+        <option value="Frozen">Frozen</option>
+        <option value="Drinks">Drinks</option>
+        <option value="Snacks">Snacks</option>
+        <option value="Household">Household</option>
+        <option value="Health & Beauty">Health & Beauty</option>
+        <option value="Other">Other</option>
+      </select>
       <button class="add-item-btn" id="quickAddBtn">Add</button>
     </div>
 
@@ -525,6 +539,7 @@ html, body {
     el.quickAddBar = document.getElementById('quickAddBar');
     el.quickAddQty = document.getElementById('quickAddQty');
     el.quickAddInput = document.getElementById('quickAddInput');
+    el.quickAddCategory = document.getElementById('quickAddCategory');
     el.quickAddBtn = document.getElementById('quickAddBtn');
     el.itemsContainer = document.getElementById('itemsContainer');
     el.itemsEmpty = document.getElementById('itemsEmpty');
@@ -808,7 +823,8 @@ html, body {
     if (!name) return;
 
     var qty = el.quickAddQty.value || '1';
-    var item = { name: name, quantity: qty, unit: '', category: '', notes: '' };
+    var cat = el.quickAddCategory.value || '';
+    var item = { name: name, quantity: qty, unit: '', category: cat, notes: '' };
 
     api('POST', '/api/lists/' + currentListId + '/items', item, function(err, data) {
       if (err) { toast('Error: ' + err); return; }
