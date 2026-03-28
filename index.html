@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1a1a2e">
-<meta name="app-version" content="2.1.0">
+<meta name="app-version" content="2.2.0">
 <title>Shopping List</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -719,7 +719,17 @@ html, body {
         row.addEventListener('click', function() { openList(id); });
       })(li.id);
 
-      el.listsList.appendChild(row);
+      // Wrap non-template lists in swipe container for maker delete
+      if (isMaker() && !li.is_template) {
+        var wrap = document.createElement('li');
+        wrap.className = 'item-wrap';
+        wrap.setAttribute('data-list-id', li.id);
+        wrap.innerHTML = '<div class="item-delete-bg">Delete</div>';
+        wrap.appendChild(row);
+        el.listsList.appendChild(wrap);
+      } else {
+        el.listsList.appendChild(row);
+      }
     }
   }
 
@@ -1229,78 +1239,81 @@ html, body {
       }
     });
 
-    // Swipe-to-delete for maker
+    // Swipe-to-delete for maker (works on items and lists)
     var swipeState = { wrap: null, row: null, startX: 0, startY: 0, dx: 0, swiping: false };
     var SWIPE_THRESHOLD = 70;
 
-    el.itemsContainer.addEventListener('touchstart', function(e) {
-      if (!isMaker()) return;
-      var wrap = e.target.closest('.item-wrap');
-      if (!wrap) return;
-      var row = wrap.querySelector('.item-row');
-      if (!row) return;
-      var t = e.touches[0];
-      swipeState.wrap = wrap;
-      swipeState.row = row;
-      swipeState.startX = t.clientX;
-      swipeState.startY = t.clientY;
-      swipeState.dx = 0;
-      swipeState.swiping = false;
-    }, { passive: true });
+    function initSwipe(container, onDelete) {
+      container.addEventListener('touchstart', function(e) {
+        if (!isMaker()) return;
+        var wrap = e.target.closest('.item-wrap');
+        if (!wrap) return;
+        var row = wrap.querySelector('.item-row, .list-row');
+        if (!row) return;
+        var t = e.touches[0];
+        swipeState.wrap = wrap;
+        swipeState.row = row;
+        swipeState.startX = t.clientX;
+        swipeState.startY = t.clientY;
+        swipeState.dx = 0;
+        swipeState.swiping = false;
+      }, { passive: true });
 
-    el.itemsContainer.addEventListener('touchmove', function(e) {
-      if (!swipeState.row) return;
-      var t = e.touches[0];
-      var dx = t.clientX - swipeState.startX;
-      var dy = t.clientY - swipeState.startY;
-
-      // Only swipe left, and only if horizontal movement dominates
-      if (!swipeState.swiping) {
-        if (Math.abs(dy) > Math.abs(dx)) { swipeState.row = null; return; }
-        if (dx < -10) swipeState.swiping = true;
-        else return;
-      }
-
-      e.preventDefault();
-      swipeState.dx = Math.min(0, dx);
-      swipeState.row.classList.add('swiping');
-      swipeState.row.style.transform = 'translateX(' + swipeState.dx + 'px)';
-    }, { passive: false });
-
-    el.itemsContainer.addEventListener('touchend', function(e) {
-      if (!swipeState.row) return;
-      var row = swipeState.row;
-      var wrap = swipeState.wrap;
-      row.classList.remove('swiping');
-
-      if (swipeState.dx < -SWIPE_THRESHOLD) {
-        // Snap open to reveal delete
-        wrap.classList.add('swiped');
-        row.style.transform = 'translateX(-80px)';
-        // Tap delete bg to confirm
-        var deleteBg = wrap.querySelector('.item-delete-bg');
-        if (deleteBg) {
-          deleteBg.onclick = function() {
-            var itemId = parseInt(wrap.getAttribute('data-id'));
-            swipeDeleteItem(itemId, wrap);
-          };
+      container.addEventListener('touchmove', function(e) {
+        if (!swipeState.row) return;
+        var t = e.touches[0];
+        var dx = t.clientX - swipeState.startX;
+        var dy = t.clientY - swipeState.startY;
+        if (!swipeState.swiping) {
+          if (Math.abs(dy) > Math.abs(dx)) { swipeState.row = null; return; }
+          if (dx < -10) swipeState.swiping = true;
+          else return;
         }
-      } else {
-        // Snap back
-        row.style.transform = '';
-      }
+        e.preventDefault();
+        swipeState.dx = Math.min(0, dx);
+        swipeState.row.classList.add('swiping');
+        swipeState.row.style.transform = 'translateX(' + swipeState.dx + 'px)';
+      }, { passive: false });
 
-      swipeState.row = null;
-      swipeState.wrap = null;
-    }, { passive: true });
+      container.addEventListener('touchend', function(e) {
+        if (!swipeState.row) return;
+        var row = swipeState.row;
+        var wrap = swipeState.wrap;
+        row.classList.remove('swiping');
+        if (swipeState.dx < -SWIPE_THRESHOLD) {
+          wrap.classList.add('swiped');
+          row.style.transform = 'translateX(-80px)';
+          var deleteBg = wrap.querySelector('.item-delete-bg');
+          if (deleteBg) {
+            deleteBg.onclick = function() { onDelete(wrap); };
+          }
+        } else {
+          row.style.transform = '';
+        }
+        swipeState.row = null;
+        swipeState.wrap = null;
+      }, { passive: true });
+    }
+
+    // Items swipe delete
+    initSwipe(el.itemsContainer, function(wrap) {
+      var itemId = parseInt(wrap.getAttribute('data-id'));
+      swipeDeleteItem(itemId, wrap);
+    });
+
+    // Lists swipe delete
+    initSwipe(el.listsList, function(wrap) {
+      var listId = parseInt(wrap.getAttribute('data-list-id'));
+      swipeDeleteList(listId, wrap);
+    });
 
     // Close any open swipe when tapping elsewhere
     document.addEventListener('touchstart', function(e) {
       if (!e.target.closest('.item-wrap')) {
-        var open = el.itemsContainer.querySelectorAll('.item-wrap.swiped');
+        var open = document.querySelectorAll('.item-wrap.swiped');
         for (var i = 0; i < open.length; i++) {
           open[i].classList.remove('swiped');
-          var r = open[i].querySelector('.item-row');
+          var r = open[i].querySelector('.item-row, .list-row');
           if (r) r.style.transform = '';
         }
       }
@@ -1325,6 +1338,23 @@ html, body {
         }
         renderItems();
         toast('Item deleted');
+      }, 250);
+    });
+  }
+
+  function swipeDeleteList(listId, wrapEl) {
+    api('DELETE', '/api/lists/' + listId, null, function(err) {
+      if (err) { toast('Error: ' + err); return; }
+      wrapEl.style.transition = 'height 0.2s, opacity 0.2s';
+      wrapEl.style.height = wrapEl.offsetHeight + 'px';
+      requestAnimationFrame(function() {
+        wrapEl.style.height = '0';
+        wrapEl.style.opacity = '0';
+        wrapEl.style.overflow = 'hidden';
+      });
+      setTimeout(function() {
+        fetchLists();
+        toast('List deleted');
       }, 250);
     });
   }
