@@ -1,0 +1,15 @@
+{
+  "name": "shopping-list",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-03-28",
+  "assets": {
+    "directory": "./public"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "shopping-list-db",
+      "database_id": "REPLACE_AFTER_CREATION"
+    }
+  ]
+}

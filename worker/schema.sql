@@ -1,0 +1,24 @@
+-- Shopping List Schema
+
+CREATE TABLE IF NOT EXISTS lists (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  list_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  quantity TEXT DEFAULT '',
+  unit TEXT DEFAULT '',
+  category TEXT DEFAULT '',
+  notes TEXT DEFAULT '',
+  checked INTEGER DEFAULT 0,
+  checked_by TEXT DEFAULT '',
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (list_id) REFERENCES lists(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_items_list_id ON items(list_id);

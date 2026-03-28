@@ -1,0 +1,1206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#1a1a2e">
+<meta name="app-version" content="1.0.0">
+<title>Shopping List</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #1a1a2e;
+  --bg2: #16213e;
+  --surface: rgba(255,255,255,0.05);
+  --surface-hover: rgba(255,255,255,0.08);
+  --text: #e4e4e4;
+  --text-dim: #888;
+  --accent: #4ade80;
+  --accent-hover: #22c55e;
+  --accent-dim: rgba(74, 222, 128, 0.15);
+  --danger: #f87171;
+  --danger-hover: #ef4444;
+  --warning: #fbbf24;
+  --blue: #60a5fa;
+  --border: rgba(255,255,255,0.1);
+  --radius: 12px;
+}
+
+html, body {
+  height: 100%;
+  background: linear-gradient(135deg, var(--bg) 0%, var(--bg2) 100%);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app { max-width: 700px; margin: 0 auto; padding: 16px; min-height: 100%; }
+
+/* Header */
+.header {
+  position: sticky; top: 0; z-index: 10;
+  background: linear-gradient(135deg, var(--bg) 0%, var(--bg2) 100%);
+  padding: 12px 0 8px; margin-bottom: 8px;
+}
+.header-top {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+}
+.header h1 { font-size: 20px; font-weight: 600; flex: 1; }
+
+/* Role badge */
+.role-badge {
+  font-size: 11px; padding: 3px 10px; border-radius: 10px;
+  font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;
+  cursor: pointer; border: none; -webkit-tap-highlight-color: transparent;
+}
+.role-badge.maker { background: rgba(96,165,250,0.2); color: var(--blue); }
+.role-badge.shopper { background: var(--accent-dim); color: var(--accent); }
+
+/* Icon buttons */
+.icon-btn {
+  width: 40px; height: 40px; border-radius: 50%; border: none;
+  background: var(--surface); color: var(--text); font-size: 20px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: background 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.icon-btn:hover { background: var(--surface-hover); }
+
+/* List rows */
+.list-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 12px; border-bottom: 1px solid var(--border);
+  cursor: pointer; transition: background 0.15s;
+}
+.list-row:hover { background: var(--surface-hover); }
+.list-row:active { background: rgba(255,255,255,0.12); }
+.list-name { flex: 1; font-size: 16px; font-weight: 500; }
+.list-meta { color: var(--text-dim); font-size: 13px; white-space: nowrap; }
+.list-progress {
+  font-size: 12px; padding: 2px 8px; border-radius: 10px;
+  font-weight: 500;
+}
+.list-progress.done { background: var(--accent-dim); color: var(--accent); }
+.list-progress.partial { background: rgba(251,191,36,0.15); color: var(--warning); }
+.list-progress.empty { background: var(--surface); color: var(--text-dim); }
+
+/* Item rows */
+.item-row {
+  display: flex; align-items: center; gap: 12px;
+  padding: 12px; border-bottom: 1px solid var(--border);
+  transition: background 0.15s, opacity 0.3s;
+}
+.item-row.checked { opacity: 0.5; }
+.item-check {
+  width: 28px; height: 28px; border-radius: 50%;
+  border: 2px solid var(--border); background: transparent;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: all 0.2s; color: transparent;
+  -webkit-tap-highlight-color: transparent; font-size: 14px;
+}
+.item-check:hover { border-color: var(--accent); }
+.item-check.checked {
+  background: var(--accent); border-color: var(--accent); color: #111;
+}
+.item-info { flex: 1; min-width: 0; }
+.item-name { font-size: 15px; font-weight: 500; }
+.item-name.checked { text-decoration: line-through; color: var(--text-dim); }
+.item-qty { font-size: 13px; color: var(--text-dim); }
+.item-category {
+  font-size: 11px; padding: 2px 8px; border-radius: 10px;
+  background: var(--surface); color: var(--text-dim); white-space: nowrap;
+}
+.item-actions { display: flex; gap: 4px; }
+.item-action-btn {
+  width: 32px; height: 32px; border-radius: 50%; border: none;
+  background: transparent; color: var(--text-dim); font-size: 16px;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.item-action-btn:hover { background: var(--surface); color: var(--text); }
+
+/* Category headers */
+.category-header {
+  font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--accent); padding: 16px 12px 6px; font-weight: 600;
+}
+
+/* Detail header */
+.detail-header {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
+}
+.detail-header h2 { flex: 1; font-size: 22px; font-weight: 600; }
+.back-btn {
+  background: none; border: none; color: var(--accent);
+  font-size: 15px; cursor: pointer; padding: 8px 12px 8px 0;
+  display: flex; align-items: center; gap: 4px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Quick add bar */
+.quick-add {
+  display: flex; gap: 8px; margin-bottom: 12px;
+}
+.quick-add input {
+  flex: 1; padding: 10px 14px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); font-size: 15px; outline: none;
+  -webkit-appearance: none;
+}
+.quick-add input:focus { border-color: var(--accent); }
+.quick-add input::placeholder { color: var(--text-dim); }
+.add-item-btn {
+  padding: 10px 16px; border-radius: var(--radius); border: none;
+  background: var(--accent); color: #111; font-size: 15px;
+  font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.add-item-btn:hover { background: var(--accent-hover); }
+
+/* Summary bar */
+.summary-bar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 12px; margin-bottom: 8px;
+  background: var(--surface); border-radius: var(--radius);
+  font-size: 14px; color: var(--text-dim);
+}
+.summary-bar .count { font-weight: 600; color: var(--text); }
+.summary-bar .progress-bar {
+  flex: 1; height: 6px; background: var(--surface-hover);
+  border-radius: 3px; overflow: hidden;
+}
+.summary-bar .progress-fill {
+  height: 100%; background: var(--accent); border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* Empty state */
+.empty-state {
+  text-align: center; color: var(--text-dim); padding: 60px 20px; font-size: 15px;
+}
+
+/* Forms */
+.form-group { margin-bottom: 14px; }
+.form-group label {
+  display: block; font-size: 13px; color: var(--text-dim);
+  margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.3px;
+}
+.form-group input, .form-group textarea, .form-group select {
+  width: 100%; padding: 10px 12px; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--surface);
+  color: var(--text); font-size: 15px; font-family: inherit;
+  outline: none; -webkit-appearance: none;
+}
+.form-group input:focus, .form-group textarea:focus, .form-group select:focus { border-color: var(--accent); }
+.form-group select { cursor: pointer; }
+.form-row { display: flex; gap: 12px; }
+.form-row .form-group { flex: 1; }
+.submit-btn {
+  width: 100%; padding: 12px; border-radius: var(--radius); border: none;
+  background: var(--accent); color: #111; font-size: 16px;
+  font-weight: 600; cursor: pointer; margin-top: 8px;
+}
+.submit-btn:hover { background: var(--accent-hover); }
+
+/* Settings overlay */
+.overlay {
+  display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  z-index: 100; align-items: flex-end; justify-content: center;
+}
+.overlay.active { display: flex; }
+.panel {
+  background: var(--bg2); border-radius: 16px 16px 0 0;
+  padding: 24px; width: 100%; max-width: 700px; max-height: 80vh;
+  overflow-y: auto;
+}
+.panel h2 { margin-bottom: 16px; font-size: 18px; }
+.panel-actions {
+  display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap;
+}
+.panel-actions button {
+  flex: 1; min-width: 120px; padding: 10px; border-radius: var(--radius);
+  border: none; font-size: 14px; cursor: pointer; font-weight: 500;
+}
+.btn-primary { background: var(--accent); color: #111; }
+.btn-secondary { background: var(--surface); color: var(--text); border: 1px solid var(--border) !important; }
+.btn-danger { background: var(--danger); color: white; }
+
+/* Scan banner */
+.scan-banner {
+  display: none; position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
+  background: var(--bg2); border: 1px solid var(--accent); border-radius: var(--radius);
+  padding: 10px 16px; z-index: 200; align-items: center; gap: 10px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4); max-width: 90%; min-width: 200px;
+}
+.scan-banner.active { display: flex; }
+.scan-spinner {
+  width: 18px; height: 18px; border: 2px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin 0.8s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.scan-banner-text { color: var(--text); font-size: 14px; }
+
+/* Scan results */
+.scan-results { margin-top: 12px; }
+.scan-match {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-bottom: 1px solid var(--border);
+}
+.scan-match-icon { font-size: 18px; flex-shrink: 0; }
+.scan-match-info { flex: 1; }
+.scan-match-name { font-size: 14px; font-weight: 500; }
+.scan-match-detail { font-size: 12px; color: var(--text-dim); }
+.scan-unmatched { color: var(--text-dim); font-size: 13px; padding: 8px 12px; }
+
+/* Toast */
+.toast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: #333; color: white; padding: 10px 20px; border-radius: var(--radius);
+  font-size: 14px; z-index: 300; opacity: 0; transition: opacity 0.3s;
+  pointer-events: none; max-width: 90%; text-align: center;
+}
+.toast.show { opacity: 1; }
+
+/* Loading */
+.loading { text-align: center; padding: 40px; color: var(--text-dim); }
+
+/* Hide file inputs */
+.file-input { display: none; }
+
+/* Views */
+.view { display: none; }
+.view.active { display: block; }
+
+/* Safe area for notched phones */
+@supports (padding: env(safe-area-inset-top)) {
+  .header { padding-top: calc(12px + env(safe-area-inset-top)); }
+  .app { padding-left: calc(16px + env(safe-area-inset-left)); padding-right: calc(16px + env(safe-area-inset-right)); }
+  .toast { bottom: calc(20px + env(safe-area-inset-bottom)); }
+}
+
+@media (max-width: 480px) {
+  .app { padding: 10px; }
+  .header h1 { font-size: 18px; }
+  .form-row { flex-direction: column; gap: 0; }
+  .list-row { padding: 16px 10px; }
+  .panel { padding: 20px 16px; }
+  .panel-actions button { min-width: 100px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- LISTS VIEW -->
+  <div id="listsView" class="view active">
+    <div class="header">
+      <div class="header-top">
+        <h1>Shopping Lists</h1>
+        <button class="role-badge maker" id="roleBadge" title="Switch role"></button>
+        <button class="icon-btn" id="addListBtn" title="New list">+</button>
+        <button class="icon-btn" id="settingsBtn" title="Settings">&#9881;</button>
+      </div>
+    </div>
+    <ul id="listsList" style="list-style:none"></ul>
+    <div class="empty-state" id="listsEmpty" style="display:none">
+      No shopping lists yet. Tap + to create one.
+    </div>
+    <div class="loading" id="listsLoading">Loading...</div>
+  </div>
+
+  <!-- LIST DETAIL VIEW -->
+  <div id="listDetailView" class="view">
+    <div class="header">
+      <div class="detail-header">
+        <button class="back-btn" id="backToListsBtn">&#8592; Back</button>
+        <h2 id="listTitle"></h2>
+        <button class="icon-btn" id="scanReceiptBtn" title="Scan receipt">&#128247;</button>
+        <button class="icon-btn" id="editListBtn" title="Edit list">&#9998;</button>
+      </div>
+    </div>
+
+    <div class="summary-bar" id="summaryBar">
+      <span><span class="count" id="checkedCount">0</span> / <span class="count" id="totalCount">0</span></span>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+    </div>
+
+    <div class="quick-add" id="quickAddBar">
+      <input type="text" id="quickAddInput" placeholder="Add item... (e.g. 2kg chicken)">
+      <button class="add-item-btn" id="quickAddBtn">Add</button>
+    </div>
+
+    <div id="itemsContainer"></div>
+    <div class="empty-state" id="itemsEmpty" style="display:none">
+      No items yet. Add some above.
+    </div>
+  </div>
+
+  <!-- ADD/EDIT LIST FORM -->
+  <div id="listFormView" class="view">
+    <div class="detail-header">
+      <button class="back-btn" id="cancelListFormBtn">&#8592; Cancel</button>
+      <h2 id="listFormTitle">New List</h2>
+    </div>
+    <div class="form-group">
+      <label>List Name</label>
+      <input type="text" id="listNameInput" placeholder="e.g. Weekly Groceries">
+    </div>
+    <button class="submit-btn" id="saveListBtn">Save List</button>
+    <button class="btn-danger" id="deleteListBtn" style="width:100%;padding:12px;border-radius:var(--radius);border:none;font-size:14px;cursor:pointer;margin-top:12px;display:none">Delete List</button>
+  </div>
+
+  <!-- ADD/EDIT ITEM FORM -->
+  <div id="itemFormView" class="view">
+    <div class="detail-header">
+      <button class="back-btn" id="cancelItemFormBtn">&#8592; Cancel</button>
+      <h2 id="itemFormTitle">Add Item</h2>
+    </div>
+    <div class="form-group">
+      <label>Item Name</label>
+      <input type="text" id="itemNameInput" placeholder="e.g. Chicken breast">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Quantity</label>
+        <input type="text" id="itemQtyInput" placeholder="e.g. 2">
+      </div>
+      <div class="form-group">
+        <label>Unit</label>
+        <input type="text" id="itemUnitInput" placeholder="e.g. kg, pack, L">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Category</label>
+      <select id="itemCategorySelect">
+        <option value="">Uncategorised</option>
+        <option value="Fruit & Veg">Fruit & Veg</option>
+        <option value="Meat & Seafood">Meat & Seafood</option>
+        <option value="Dairy & Eggs">Dairy & Eggs</option>
+        <option value="Bakery">Bakery</option>
+        <option value="Pantry">Pantry</option>
+        <option value="Frozen">Frozen</option>
+        <option value="Drinks">Drinks</option>
+        <option value="Snacks">Snacks</option>
+        <option value="Household">Household</option>
+        <option value="Health & Beauty">Health & Beauty</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <input type="text" id="itemNotesInput" placeholder="e.g. Get the organic one">
+    </div>
+    <button class="submit-btn" id="saveItemBtn">Add Item</button>
+    <button class="btn-danger" id="deleteItemBtn" style="width:100%;padding:12px;border-radius:var(--radius);border:none;font-size:14px;cursor:pointer;margin-top:12px;display:none">Delete Item</button>
+  </div>
+
+  <!-- SCAN RESULTS VIEW -->
+  <div id="scanResultsView" class="view">
+    <div class="detail-header">
+      <button class="back-btn" id="closeScanResultsBtn">&#8592; Back</button>
+      <h2>Receipt Scan</h2>
+    </div>
+    <div id="scanResultsContent"></div>
+    <div class="panel-actions" style="margin-top:20px">
+      <button class="btn-primary" id="applyScanBtn">Check Off Matched Items</button>
+    </div>
+  </div>
+
+</div>
+
+<!-- SETTINGS OVERLAY -->
+<div class="overlay" id="settingsOverlay">
+  <div class="panel">
+    <h2>Settings</h2>
+    <div class="form-group">
+      <label>Worker URL</label>
+      <input type="text" id="workerUrlInput" placeholder="https://shopping-list.example.workers.dev">
+    </div>
+    <div class="form-group">
+      <label>Auth Token</label>
+      <input type="password" id="tokenInput" placeholder="Dashboard token">
+    </div>
+    <div class="form-group">
+      <label>Role</label>
+      <select id="roleSelect">
+        <option value="maker">List Maker (full access)</option>
+        <option value="shopper">Shopper (check off only)</option>
+      </select>
+    </div>
+    <div class="panel-actions">
+      <button class="btn-primary" id="saveSettingsBtn">Save</button>
+      <button class="btn-secondary" id="closeSettingsBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- SCAN BANNER -->
+<div class="scan-banner" id="scanBanner">
+  <div class="scan-spinner"></div>
+  <span class="scan-banner-text" id="scanBannerText">Scanning receipt...</span>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- HIDDEN FILE INPUT -->
+<input type="file" class="file-input" id="receiptFileInput" accept="image/*" multiple>
+
+<script>
+(function() {
+  /* ── Config ── */
+  var config = {
+    workerUrl: '',
+    token: '',
+    role: 'maker'
+  };
+
+  var STORAGE_KEY = 'shopping_list_config';
+  var currentListId = null;
+  var currentItems = [];
+  var currentList = null;
+  var editingItemId = null;
+  var editingListId = null;
+  var scanMatches = [];
+
+  /* ── Load/Save Config ── */
+  function loadConfig() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        var parsed = JSON.parse(raw);
+        config.workerUrl = parsed.workerUrl || '';
+        config.token = parsed.token || '';
+        config.role = parsed.role || 'maker';
+      }
+    } catch (e) {}
+    // Auto-detect worker URL on workers.dev
+    if (!config.workerUrl && window.location.hostname.indexOf('.workers.dev') !== -1) {
+      config.workerUrl = window.location.origin;
+    }
+  }
+
+  function saveConfig() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(config)); } catch (e) {}
+  }
+
+  /* ── DOM References ── */
+  var el = {};
+  function initElements() {
+    el.listsView = document.getElementById('listsView');
+    el.listDetailView = document.getElementById('listDetailView');
+    el.listFormView = document.getElementById('listFormView');
+    el.itemFormView = document.getElementById('itemFormView');
+    el.scanResultsView = document.getElementById('scanResultsView');
+
+    el.roleBadge = document.getElementById('roleBadge');
+    el.addListBtn = document.getElementById('addListBtn');
+    el.settingsBtn = document.getElementById('settingsBtn');
+    el.listsList = document.getElementById('listsList');
+    el.listsEmpty = document.getElementById('listsEmpty');
+    el.listsLoading = document.getElementById('listsLoading');
+
+    el.backToListsBtn = document.getElementById('backToListsBtn');
+    el.listTitle = document.getElementById('listTitle');
+    el.scanReceiptBtn = document.getElementById('scanReceiptBtn');
+    el.editListBtn = document.getElementById('editListBtn');
+    el.summaryBar = document.getElementById('summaryBar');
+    el.checkedCount = document.getElementById('checkedCount');
+    el.totalCount = document.getElementById('totalCount');
+    el.progressFill = document.getElementById('progressFill');
+    el.quickAddBar = document.getElementById('quickAddBar');
+    el.quickAddInput = document.getElementById('quickAddInput');
+    el.quickAddBtn = document.getElementById('quickAddBtn');
+    el.itemsContainer = document.getElementById('itemsContainer');
+    el.itemsEmpty = document.getElementById('itemsEmpty');
+
+    el.listFormTitle = document.getElementById('listFormTitle');
+    el.listNameInput = document.getElementById('listNameInput');
+    el.saveListBtn = document.getElementById('saveListBtn');
+    el.deleteListBtn = document.getElementById('deleteListBtn');
+    el.cancelListFormBtn = document.getElementById('cancelListFormBtn');
+
+    el.itemFormTitle = document.getElementById('itemFormTitle');
+    el.itemNameInput = document.getElementById('itemNameInput');
+    el.itemQtyInput = document.getElementById('itemQtyInput');
+    el.itemUnitInput = document.getElementById('itemUnitInput');
+    el.itemCategorySelect = document.getElementById('itemCategorySelect');
+    el.itemNotesInput = document.getElementById('itemNotesInput');
+    el.saveItemBtn = document.getElementById('saveItemBtn');
+    el.deleteItemBtn = document.getElementById('deleteItemBtn');
+    el.cancelItemFormBtn = document.getElementById('cancelItemFormBtn');
+
+    el.scanResultsContent = document.getElementById('scanResultsContent');
+    el.closeScanResultsBtn = document.getElementById('closeScanResultsBtn');
+    el.applyScanBtn = document.getElementById('applyScanBtn');
+
+    el.settingsOverlay = document.getElementById('settingsOverlay');
+    el.workerUrlInput = document.getElementById('workerUrlInput');
+    el.tokenInput = document.getElementById('tokenInput');
+    el.roleSelect = document.getElementById('roleSelect');
+    el.saveSettingsBtn = document.getElementById('saveSettingsBtn');
+    el.closeSettingsBtn = document.getElementById('closeSettingsBtn');
+
+    el.scanBanner = document.getElementById('scanBanner');
+    el.scanBannerText = document.getElementById('scanBannerText');
+    el.receiptFileInput = document.getElementById('receiptFileInput');
+    el.toast = document.getElementById('toast');
+  }
+
+  /* ── View Management ── */
+  function showView(viewEl) {
+    var views = document.querySelectorAll('.view');
+    for (var i = 0; i < views.length; i++) {
+      views[i].classList.remove('active');
+    }
+    viewEl.classList.add('active');
+  }
+
+  /* ── Toast ── */
+  var toastTimer = null;
+  function toast(msg) {
+    el.toast.textContent = msg;
+    el.toast.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(function() { el.toast.classList.remove('show'); }, 3000);
+  }
+
+  /* ── API Helper ── */
+  function api(method, path, body, cb) {
+    if (!config.workerUrl) {
+      toast('Set Worker URL in settings first');
+      return;
+    }
+    var xhr = new XMLHttpRequest();
+    xhr.open(method, config.workerUrl + path);
+    xhr.setRequestHeader('Content-Type', 'application/json');
+    if (config.token) {
+      xhr.setRequestHeader('X-Dashboard-Token', config.token);
+    }
+    xhr.onload = function() {
+      try {
+        var data = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          cb(null, data);
+        } else {
+          cb(data.error || 'Request failed');
+        }
+      } catch (e) {
+        cb('Invalid response');
+      }
+    };
+    xhr.onerror = function() { cb('Network error'); };
+    xhr.send(body ? JSON.stringify(body) : null);
+  }
+
+  /* ── Role ── */
+  function isMaker() { return config.role === 'maker'; }
+
+  function updateRoleBadge() {
+    el.roleBadge.textContent = isMaker() ? 'MAKER' : 'SHOPPER';
+    el.roleBadge.className = 'role-badge ' + config.role;
+  }
+
+  function updateRoleUI() {
+    updateRoleBadge();
+    // Hide maker-only controls in shopper mode
+    el.addListBtn.style.display = isMaker() ? '' : 'none';
+    el.editListBtn.style.display = isMaker() ? '' : 'none';
+    el.quickAddBar.style.display = isMaker() ? '' : 'none';
+  }
+
+  /* ── Lists View ── */
+  function fetchLists() {
+    el.listsLoading.style.display = 'block';
+    el.listsEmpty.style.display = 'none';
+    el.listsList.innerHTML = '';
+    api('GET', '/api/lists', null, function(err, data) {
+      el.listsLoading.style.display = 'none';
+      if (err) { toast('Error: ' + err); return; }
+      var lists = data.lists || [];
+      if (lists.length === 0) {
+        el.listsEmpty.style.display = 'block';
+        return;
+      }
+      renderLists(lists);
+    });
+  }
+
+  function renderLists(lists) {
+    el.listsList.innerHTML = '';
+    for (var i = 0; i < lists.length; i++) {
+      var li = lists[i];
+      var row = document.createElement('li');
+      row.className = 'list-row';
+      row.setAttribute('data-id', li.id);
+
+      var total = li.item_count || 0;
+      var checked = li.checked_count || 0;
+      var pctClass = total === 0 ? 'empty' : (checked === total ? 'done' : 'partial');
+      var pctText = total === 0 ? 'Empty' : checked + '/' + total;
+
+      row.innerHTML = '<div class="list-name">' + escHtml(li.name) + '</div>' +
+        '<span class="list-progress ' + pctClass + '">' + pctText + '</span>' +
+        '<span class="list-meta">&#9656;</span>';
+
+      (function(id) {
+        row.addEventListener('click', function() { openList(id); });
+      })(li.id);
+
+      el.listsList.appendChild(row);
+    }
+  }
+
+  /* ── List Detail ── */
+  function openList(id) {
+    currentListId = id;
+    showView(el.listDetailView);
+    updateRoleUI();
+    el.listTitle.textContent = 'Loading...';
+    el.itemsContainer.innerHTML = '';
+    el.itemsEmpty.style.display = 'none';
+
+    api('GET', '/api/lists/' + id, null, function(err, data) {
+      if (err) { toast('Error: ' + err); showView(el.listsView); return; }
+      currentList = data.list;
+      currentItems = data.items || [];
+      el.listTitle.textContent = currentList.name;
+      renderItems();
+    });
+  }
+
+  function renderItems() {
+    el.itemsContainer.innerHTML = '';
+    if (currentItems.length === 0) {
+      el.itemsEmpty.style.display = 'block';
+      updateSummary();
+      return;
+    }
+    el.itemsEmpty.style.display = 'none';
+
+    // Group by category
+    var categories = {};
+    var uncategorised = [];
+    for (var i = 0; i < currentItems.length; i++) {
+      var item = currentItems[i];
+      var cat = item.category || '';
+      if (!cat) {
+        uncategorised.push(item);
+      } else {
+        if (!categories[cat]) categories[cat] = [];
+        categories[cat].push(item);
+      }
+    }
+
+    // Sort categories alphabetically
+    var catKeys = [];
+    for (var k in categories) {
+      if (categories.hasOwnProperty(k)) catKeys.push(k);
+    }
+    catKeys.sort();
+
+    // Render uncategorised first, then categories
+    if (uncategorised.length > 0) {
+      renderItemGroup('', uncategorised);
+    }
+    for (var c = 0; c < catKeys.length; c++) {
+      renderItemGroup(catKeys[c], categories[catKeys[c]]);
+    }
+
+    updateSummary();
+  }
+
+  function renderItemGroup(category, items) {
+    if (category) {
+      var header = document.createElement('div');
+      header.className = 'category-header';
+      header.textContent = category;
+      el.itemsContainer.appendChild(header);
+    }
+
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      var row = document.createElement('div');
+      row.className = 'item-row' + (item.checked ? ' checked' : '');
+      row.setAttribute('data-id', item.id);
+
+      var qtyText = '';
+      if (item.quantity) {
+        qtyText = item.quantity + (item.unit ? ' ' + item.unit : '');
+      }
+
+      var notesText = item.notes ? ' &middot; ' + escHtml(item.notes) : '';
+
+      var catBadge = '';
+      if (!category && item.category) {
+        catBadge = '<span class="item-category">' + escHtml(item.category) + '</span>';
+      }
+
+      var actionsHtml = '';
+      if (isMaker()) {
+        actionsHtml = '<div class="item-actions">' +
+          '<button class="item-action-btn edit-item-btn" data-id="' + item.id + '" title="Edit">&#9998;</button>' +
+          '</div>';
+      }
+
+      row.innerHTML =
+        '<button class="item-check' + (item.checked ? ' checked' : '') + '" data-id="' + item.id + '">&#10003;</button>' +
+        '<div class="item-info">' +
+          '<div class="item-name' + (item.checked ? ' checked' : '') + '">' + escHtml(item.name) + '</div>' +
+          (qtyText || notesText ? '<div class="item-qty">' + escHtml(qtyText) + notesText + '</div>' : '') +
+        '</div>' +
+        catBadge +
+        actionsHtml;
+
+      el.itemsContainer.appendChild(row);
+    }
+  }
+
+  function updateSummary() {
+    var total = currentItems.length;
+    var checked = 0;
+    for (var i = 0; i < currentItems.length; i++) {
+      if (currentItems[i].checked) checked++;
+    }
+    el.checkedCount.textContent = checked;
+    el.totalCount.textContent = total;
+    var pct = total > 0 ? Math.round((checked / total) * 100) : 0;
+    el.progressFill.style.width = pct + '%';
+  }
+
+  /* ── Toggle Check ── */
+  function toggleCheck(itemId) {
+    var item = null;
+    for (var i = 0; i < currentItems.length; i++) {
+      if (currentItems[i].id === itemId) { item = currentItems[i]; break; }
+    }
+    if (!item) return;
+
+    var newChecked = item.checked ? 0 : 1;
+    api('PUT', '/api/lists/' + currentListId + '/items/' + itemId, {
+      checked: newChecked,
+      checked_by: config.role
+    }, function(err) {
+      if (err) { toast('Error: ' + err); return; }
+      item.checked = newChecked;
+      renderItems();
+    });
+  }
+
+  /* ── Quick Add ── */
+  function quickAddItem() {
+    var raw = el.quickAddInput.value.trim();
+    if (!raw) return;
+
+    // Parse "2kg chicken" or "3 x milk" patterns
+    var parsed = parseItemInput(raw);
+
+    api('POST', '/api/lists/' + currentListId + '/items', parsed, function(err, data) {
+      if (err) { toast('Error: ' + err); return; }
+      el.quickAddInput.value = '';
+      currentItems.push(data);
+      renderItems();
+    });
+  }
+
+  function parseItemInput(raw) {
+    var result = { name: raw, quantity: '', unit: '', category: '', notes: '' };
+
+    // Try patterns like "2kg chicken", "3 x milk", "500ml cream", "2 chicken"
+    var m = raw.match(/^(\d+(?:\.\d+)?)\s*(kg|g|ml|l|L|pack|packs|bunch|bunches|dozen|doz|x)\s+(.+)$/i);
+    if (m) {
+      result.quantity = m[1];
+      result.unit = m[2].toLowerCase();
+      result.name = m[3];
+      if (result.unit === 'x') { result.unit = ''; }
+      return result;
+    }
+
+    // "2 chicken" (just a number prefix)
+    var m2 = raw.match(/^(\d+(?:\.\d+)?)\s+(.+)$/);
+    if (m2) {
+      result.quantity = m2[1];
+      result.name = m2[2];
+      return result;
+    }
+
+    return result;
+  }
+
+  /* ── List CRUD ── */
+  function openListForm(listId) {
+    editingListId = listId || null;
+    el.listFormTitle.textContent = editingListId ? 'Edit List' : 'New List';
+    el.listNameInput.value = '';
+    el.deleteListBtn.style.display = editingListId ? 'block' : 'none';
+    el.saveListBtn.textContent = editingListId ? 'Update List' : 'Create List';
+
+    if (editingListId && currentList) {
+      el.listNameInput.value = currentList.name;
+    }
+
+    showView(el.listFormView);
+    el.listNameInput.focus();
+  }
+
+  function saveList() {
+    var name = el.listNameInput.value.trim();
+    if (!name) { toast('Enter a list name'); return; }
+
+    if (editingListId) {
+      api('PUT', '/api/lists/' + editingListId, { name: name }, function(err) {
+        if (err) { toast('Error: ' + err); return; }
+        toast('List updated');
+        currentList.name = name;
+        openList(editingListId);
+      });
+    } else {
+      api('POST', '/api/lists', { name: name }, function(err, data) {
+        if (err) { toast('Error: ' + err); return; }
+        toast('List created');
+        openList(data.id);
+      });
+    }
+  }
+
+  function deleteList() {
+    if (!editingListId) return;
+    if (!confirm('Delete this list and all its items?')) return;
+    api('DELETE', '/api/lists/' + editingListId, null, function(err) {
+      if (err) { toast('Error: ' + err); return; }
+      toast('List deleted');
+      showView(el.listsView);
+      fetchLists();
+    });
+  }
+
+  /* ── Item CRUD ── */
+  function openItemForm(itemId) {
+    editingItemId = itemId || null;
+    el.itemFormTitle.textContent = editingItemId ? 'Edit Item' : 'Add Item';
+    el.itemNameInput.value = '';
+    el.itemQtyInput.value = '';
+    el.itemUnitInput.value = '';
+    el.itemCategorySelect.value = '';
+    el.itemNotesInput.value = '';
+    el.deleteItemBtn.style.display = editingItemId ? 'block' : 'none';
+    el.saveItemBtn.textContent = editingItemId ? 'Update Item' : 'Add Item';
+
+    if (editingItemId) {
+      for (var i = 0; i < currentItems.length; i++) {
+        if (currentItems[i].id === editingItemId) {
+          var item = currentItems[i];
+          el.itemNameInput.value = item.name;
+          el.itemQtyInput.value = item.quantity || '';
+          el.itemUnitInput.value = item.unit || '';
+          el.itemCategorySelect.value = item.category || '';
+          el.itemNotesInput.value = item.notes || '';
+          break;
+        }
+      }
+    }
+
+    showView(el.itemFormView);
+    el.itemNameInput.focus();
+  }
+
+  function saveItem() {
+    var name = el.itemNameInput.value.trim();
+    if (!name) { toast('Enter an item name'); return; }
+
+    var body = {
+      name: name,
+      quantity: el.itemQtyInput.value.trim(),
+      unit: el.itemUnitInput.value.trim(),
+      category: el.itemCategorySelect.value,
+      notes: el.itemNotesInput.value.trim()
+    };
+
+    if (editingItemId) {
+      api('PUT', '/api/lists/' + currentListId + '/items/' + editingItemId, body, function(err, data) {
+        if (err) { toast('Error: ' + err); return; }
+        toast('Item updated');
+        openList(currentListId);
+      });
+    } else {
+      api('POST', '/api/lists/' + currentListId + '/items', body, function(err, data) {
+        if (err) { toast('Error: ' + err); return; }
+        toast('Item added');
+        openList(currentListId);
+      });
+    }
+  }
+
+  function deleteItem() {
+    if (!editingItemId) return;
+    if (!confirm('Delete this item?')) return;
+    api('DELETE', '/api/lists/' + currentListId + '/items/' + editingItemId, null, function(err) {
+      if (err) { toast('Error: ' + err); return; }
+      toast('Item deleted');
+      openList(currentListId);
+    });
+  }
+
+  /* ── Receipt Scanning ── */
+  function startScan() {
+    el.receiptFileInput.click();
+  }
+
+  function handleReceiptFiles(files) {
+    if (!files || files.length === 0) return;
+
+    el.scanBanner.classList.add('active');
+    el.scanBannerText.textContent = 'Scanning ' + files.length + ' receipt(s)...';
+
+    var formData = new FormData();
+    for (var i = 0; i < files.length; i++) {
+      formData.append('photos', files[i]);
+    }
+
+    // Include current list items so the worker can match
+    var itemNames = [];
+    for (var j = 0; j < currentItems.length; j++) {
+      itemNames.push({
+        id: currentItems[j].id,
+        name: currentItems[j].name,
+        quantity: currentItems[j].quantity,
+        unit: currentItems[j].unit
+      });
+    }
+    formData.append('list_items', JSON.stringify(itemNames));
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', config.workerUrl + '/api/scan-receipt');
+    if (config.token) {
+      xhr.setRequestHeader('X-Dashboard-Token', config.token);
+    }
+    xhr.onload = function() {
+      el.scanBanner.classList.remove('active');
+      try {
+        var data = JSON.parse(xhr.responseText);
+        if (xhr.status >= 200 && xhr.status < 300) {
+          showScanResults(data);
+        } else {
+          toast('Scan error: ' + (data.error || 'Unknown'));
+        }
+      } catch (e) {
+        toast('Invalid scan response');
+      }
+    };
+    xhr.onerror = function() {
+      el.scanBanner.classList.remove('active');
+      toast('Scan network error');
+    };
+    xhr.send(formData);
+  }
+
+  function showScanResults(data) {
+    scanMatches = data.matches || [];
+    var unmatched = data.unmatched || [];
+
+    var html = '';
+    if (scanMatches.length > 0) {
+      html += '<div class="category-header">Matched Items</div>';
+      for (var i = 0; i < scanMatches.length; i++) {
+        var m = scanMatches[i];
+        html += '<div class="scan-match">' +
+          '<span class="scan-match-icon" style="color:var(--accent)">&#10003;</span>' +
+          '<div class="scan-match-info">' +
+            '<div class="scan-match-name">' + escHtml(m.list_item_name) + '</div>' +
+            '<div class="scan-match-detail">Receipt: ' + escHtml(m.receipt_item) +
+              (m.price ? ' &mdash; $' + m.price : '') + '</div>' +
+          '</div></div>';
+      }
+    }
+
+    if (unmatched.length > 0) {
+      html += '<div class="category-header" style="color:var(--text-dim)">Not on List</div>';
+      for (var u = 0; u < unmatched.length; u++) {
+        html += '<div class="scan-unmatched">' + escHtml(unmatched[u].name) +
+          (unmatched[u].price ? ' &mdash; $' + unmatched[u].price : '') + '</div>';
+      }
+    }
+
+    if (scanMatches.length === 0 && unmatched.length === 0) {
+      html = '<div class="empty-state">No items found on receipt.</div>';
+    }
+
+    el.scanResultsContent.innerHTML = html;
+    el.applyScanBtn.style.display = scanMatches.length > 0 ? '' : 'none';
+    showView(el.scanResultsView);
+  }
+
+  function applyScanMatches() {
+    if (scanMatches.length === 0) return;
+
+    var remaining = scanMatches.length;
+    var errors = 0;
+
+    for (var i = 0; i < scanMatches.length; i++) {
+      (function(match) {
+        api('PUT', '/api/lists/' + currentListId + '/items/' + match.list_item_id, {
+          checked: 1,
+          checked_by: 'receipt_scan'
+        }, function(err) {
+          if (err) errors++;
+          remaining--;
+          if (remaining === 0) {
+            var msg = (scanMatches.length - errors) + ' items checked off';
+            if (errors > 0) msg += ' (' + errors + ' errors)';
+            toast(msg);
+            openList(currentListId);
+          }
+        });
+      })(scanMatches[i]);
+    }
+  }
+
+  /* ── Settings ── */
+  function openSettings() {
+    el.workerUrlInput.value = config.workerUrl;
+    el.tokenInput.value = config.token;
+    el.roleSelect.value = config.role;
+    el.settingsOverlay.classList.add('active');
+  }
+
+  function saveSettings() {
+    config.workerUrl = el.workerUrlInput.value.trim().replace(/\/+$/, '');
+    config.token = el.tokenInput.value.trim();
+    config.role = el.roleSelect.value;
+    saveConfig();
+    el.settingsOverlay.classList.remove('active');
+    updateRoleUI();
+    toast('Settings saved');
+    fetchLists();
+  }
+
+  function closeSettings() {
+    el.settingsOverlay.classList.remove('active');
+  }
+
+  /* ── Utility ── */
+  function escHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  /* ── Event Delegation ── */
+  function initEvents() {
+    el.roleBadge.addEventListener('click', function() {
+      config.role = isMaker() ? 'shopper' : 'maker';
+      saveConfig();
+      updateRoleUI();
+      if (currentListId) renderItems();
+      toast('Switched to ' + config.role + ' mode');
+    });
+
+    el.addListBtn.addEventListener('click', function() { openListForm(null); });
+    el.settingsBtn.addEventListener('click', openSettings);
+    el.saveSettingsBtn.addEventListener('click', saveSettings);
+    el.closeSettingsBtn.addEventListener('click', closeSettings);
+
+    el.settingsOverlay.addEventListener('click', function(e) {
+      if (e.target === el.settingsOverlay) closeSettings();
+    });
+
+    el.backToListsBtn.addEventListener('click', function() {
+      showView(el.listsView);
+      fetchLists();
+    });
+
+    el.editListBtn.addEventListener('click', function() { openListForm(currentListId); });
+    el.scanReceiptBtn.addEventListener('click', startScan);
+
+    el.receiptFileInput.addEventListener('change', function() {
+      handleReceiptFiles(this.files);
+      this.value = '';
+    });
+
+    el.quickAddBtn.addEventListener('click', quickAddItem);
+    el.quickAddInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' || e.keyCode === 13) quickAddItem();
+    });
+
+    el.cancelListFormBtn.addEventListener('click', function() {
+      if (currentListId) {
+        openList(currentListId);
+      } else {
+        showView(el.listsView);
+        fetchLists();
+      }
+    });
+    el.saveListBtn.addEventListener('click', saveList);
+    el.deleteListBtn.addEventListener('click', deleteList);
+
+    el.cancelItemFormBtn.addEventListener('click', function() { openList(currentListId); });
+    el.saveItemBtn.addEventListener('click', saveItem);
+    el.deleteItemBtn.addEventListener('click', deleteItem);
+
+    el.closeScanResultsBtn.addEventListener('click', function() { openList(currentListId); });
+    el.applyScanBtn.addEventListener('click', applyScanMatches);
+
+    // Event delegation for item clicks
+    el.itemsContainer.addEventListener('click', function(e) {
+      // Check button
+      var checkBtn = e.target.closest('.item-check');
+      if (checkBtn) {
+        var id = parseInt(checkBtn.getAttribute('data-id'));
+        toggleCheck(id);
+        return;
+      }
+
+      // Edit button
+      var editBtn = e.target.closest('.edit-item-btn');
+      if (editBtn) {
+        var itemId = parseInt(editBtn.getAttribute('data-id'));
+        openItemForm(itemId);
+        return;
+      }
+    });
+  }
+
+  /* ── Auto-update ── */
+  function checkVersion() {
+    var meta = document.querySelector('meta[name="app-version"]');
+    if (!meta) return;
+    var currentVersion = meta.getAttribute('content');
+    var storedVersion = localStorage.getItem('shopping_list_version');
+    if (storedVersion && storedVersion !== currentVersion) {
+      localStorage.setItem('shopping_list_version', currentVersion);
+      window.location.reload();
+      return;
+    }
+    localStorage.setItem('shopping_list_version', currentVersion);
+  }
+
+  /* ── Init ── */
+  function init() {
+    loadConfig();
+    initElements();
+    updateRoleUI();
+    initEvents();
+    checkVersion();
+
+    if (config.workerUrl) {
+      fetchLists();
+    } else {
+      el.listsLoading.style.display = 'none';
+      el.listsEmpty.style.display = 'block';
+      el.listsEmpty.textContent = 'Set your Worker URL in settings to get started.';
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+</body>
+</html>
