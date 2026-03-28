@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#1a1a2e">
-<meta name="app-version" content="2.2.0">
+<meta name="app-version" content="2.2.1">
 <title>Shopping List</title>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -335,6 +335,7 @@ html, body {
         <h1>Shopping Lists</h1>
         <button class="role-badge maker" id="roleBadge" title="Switch role"></button>
         <button class="icon-btn" id="addListBtn" title="New list">+</button>
+        <button class="icon-btn" id="reloadBtn" title="Force reload">&#8635;</button>
         <button class="icon-btn" id="settingsBtn" title="Settings">&#9881;</button>
       </div>
     </div>
@@ -541,6 +542,7 @@ html, body {
 
     el.roleBadge = document.getElementById('roleBadge');
     el.addListBtn = document.getElementById('addListBtn');
+    el.reloadBtn = document.getElementById('reloadBtn');
     el.settingsBtn = document.getElementById('settingsBtn');
     el.listsList = document.getElementById('listsList');
     el.listsEmpty = document.getElementById('listsEmpty');
@@ -1185,6 +1187,7 @@ html, body {
     });
 
     el.addListBtn.addEventListener('click', function() { openListForm(null); });
+    el.reloadBtn.addEventListener('click', function() { window.location.reload(true); });
     el.settingsBtn.addEventListener('click', openSettings);
     el.saveSettingsBtn.addEventListener('click', saveSettings);
     el.closeSettingsBtn.addEventListener('click', closeSettings);
