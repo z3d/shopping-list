@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#141618">
-<meta name="app-version" content="2.8.0">
+<meta name="app-version" content="2.8.1">
 <title>Shopping List</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1658,7 +1658,6 @@ html, body {
     if (!meta) return;
     var currentVersion = meta.getAttribute('content');
 
-    // Check server for newer version
     function fetchRemoteVersion() {
       var url = config.workerUrl || window.location.origin;
       var xhr = new XMLHttpRequest();
@@ -1666,7 +1665,7 @@ html, body {
       xhr.onload = function() {
         var match = xhr.responseText.match(/<meta\s+name="app-version"\s+content="([^"]+)"/);
         if (match && match[1] !== currentVersion) {
-          showUpdateBanner(match[1]);
+          window.location.reload();
         }
       };
       xhr.send();
@@ -1674,16 +1673,6 @@ html, body {
 
     fetchRemoteVersion();
     setInterval(fetchRemoteVersion, 60000);
-  }
-
-  function showUpdateBanner(newVersion) {
-    if (document.getElementById('updateBanner')) return;
-    var banner = document.createElement('div');
-    banner.id = 'updateBanner';
-    banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:var(--accent);color:#1a1a2e;padding:12px 16px;display:flex;align-items:center;justify-content:space-between;font-weight:600;font-size:14px;z-index:9999;padding-bottom:calc(12px + env(safe-area-inset-bottom))';
-    banner.innerHTML = 'Update available (v' + newVersion + ')' +
-      '<button onclick="location.reload()" style="background:#1a1a2e;color:var(--accent);border:none;padding:6px 16px;border-radius:6px;font-weight:600;font-size:14px;cursor:pointer">Update</button>';
-    document.body.appendChild(banner);
   }
 
   function init() {
