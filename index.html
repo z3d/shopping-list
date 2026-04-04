@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#141618">
-<meta name="app-version" content="2.8.1">
+<meta name="app-version" content="2.8.2">
 <title>Shopping List</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1671,8 +1671,12 @@ html, body {
       xhr.send();
     }
 
-    fetchRemoteVersion();
-    setInterval(fetchRemoteVersion, 60000);
+    var TWELVE_HOURS = 12 * 60 * 60 * 1000;
+    var lastCheck = parseInt(localStorage.getItem('shopping_list_last_version_check') || '0');
+    if (Date.now() - lastCheck >= TWELVE_HOURS) {
+      localStorage.setItem('shopping_list_last_version_check', String(Date.now()));
+      fetchRemoteVersion();
+    }
   }
 
   function init() {
