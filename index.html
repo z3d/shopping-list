@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#141618">
-<meta name="app-version" content="2.7.1">
+<meta name="app-version" content="2.7.2">
 <title>Shopping List</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1541,6 +1541,7 @@ html, body {
     function initSwipe(container, onDelete) {
       container.addEventListener('touchstart', function(e) {
         if (!isMaker()) return;
+        if (e.target.closest('.item-delete-bg')) return;
         var wrap = e.target.closest('.item-wrap');
         if (!wrap) return;
         var row = wrap.querySelector('.item-row, .list-row');
@@ -1580,7 +1581,7 @@ html, body {
           row.style.transform = 'translateX(-80px)';
           var deleteBg = wrap.querySelector('.item-delete-bg');
           if (deleteBg) {
-            deleteBg.onclick = function() { onDelete(wrap); };
+            deleteBg.onclick = function(ev) { ev.stopPropagation(); onDelete(wrap); };
           }
         } else {
           row.style.transform = '';
