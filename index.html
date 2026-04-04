@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#141618">
-<meta name="app-version" content="2.5.0">
+<meta name="app-version" content="2.6.0">
 <title>Shopping List</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -686,6 +686,7 @@ html, body {
   var editingItemId = null;
   var editingListId = null;
   var scanMatches = [];
+  var pollTimer = null;
 
   function loadConfig() {
     try {
@@ -905,6 +906,7 @@ html, body {
 
   /* -- List Detail -- */
   function openList(id) {
+    stopSync();
     currentListId = id;
     showView(el.listDetailView);
     el.listTitle.textContent = 'Loading...';
@@ -918,6 +920,7 @@ html, body {
       el.listTitle.textContent = currentList.name;
       updateDetailUI();
       renderItems();
+      if (!isTemplate()) startSync();
     });
   }
 
@@ -955,6 +958,85 @@ html, body {
     }
 
     updateSummary();
+  }
+
+  function startSync() {
+    stopSync();
+    pollTimer = setInterval(syncList, 5000);
+  }
+
+  function stopSync() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  }
+
+  function syncList() {
+    if (!currentListId) return;
+    if (editingItemId) return;
+    // Check swipeState if it exists (set up later in init)
+    if (typeof swipeState !== 'undefined' && (swipeState.swiping || swipeState.row)) return;
+
+    api('GET', '/api/lists/' + currentListId, null, function(err, data) {
+      if (err) return; // silent fail on sync
+      var newItems = data.items || [];
+
+      // Build lookup of current items by id
+      var oldById = {};
+      for (var i = 0; i < currentItems.length; i++) {
+        oldById[currentItems[i].id] = currentItems[i];
+      }
+
+      // Detect if structural changes occurred
+      var structural = false;
+      if (newItems.length !== currentItems.length) {
+        structural = true;
+      } else {
+        for (var j = 0; j < newItems.length; j++) {
+          var old = oldById[newItems[j].id];
+          if (!old) { structural = true; break; }
+          if (old.name !== newItems[j].name || old.quantity !== newItems[j].quantity ||
+              old.unit !== newItems[j].unit || old.category !== newItems[j].category ||
+              old.notes !== newItems[j].notes || old.selected !== newItems[j].selected) {
+            structural = true; break;
+          }
+        }
+      }
+
+      if (structural) {
+        currentItems = newItems;
+        renderItems();
+        return;
+      }
+
+      // Check-only changes: update in-place
+      var changed = false;
+      for (var k = 0; k < newItems.length; k++) {
+        var cur = oldById[newItems[k].id];
+        if (!cur) continue;
+        if (cur.checked !== newItems[k].checked) {
+          cur.checked = newItems[k].checked;
+          cur.checked_by = newItems[k].checked_by;
+          changed = true;
+
+          // Update DOM in-place
+          var row = el.itemsContainer.querySelector('.item-row[data-id="' + cur.id + '"]');
+          if (row) {
+            var btn = row.querySelector('.item-check');
+            var nameEl = row.querySelector('.item-name');
+            if (cur.checked) {
+              row.classList.add('checked');
+              if (btn) btn.classList.add('checked');
+              if (nameEl) nameEl.classList.add('checked');
+            } else {
+              row.classList.remove('checked');
+              if (btn) btn.classList.remove('checked');
+              if (nameEl) nameEl.classList.remove('checked');
+            }
+          }
+        }
+      }
+
+      if (changed) updateSummary();
+    });
   }
 
   function renderItemGroup(category, items) {
@@ -1151,6 +1233,7 @@ html, body {
 
   /* -- List CRUD -- */
   function openListForm(listId) {
+    stopSync();
     editingListId = listId || null;
     el.listFormTitle.textContent = editingListId ? 'Edit List' : 'New List';
     el.listNameInput.value = '';
@@ -1200,6 +1283,7 @@ html, body {
 
   /* -- Item CRUD -- */
   function openItemForm(itemId) {
+    stopSync();
     editingItemId = itemId || null;
     el.itemFormTitle.textContent = editingItemId ? 'Edit Item' : 'Add Item';
     el.itemNameInput.value = '';
@@ -1388,7 +1472,7 @@ html, body {
     el.closeSettingsBtn.addEventListener('click', closeSettings);
     el.settingsOverlay.addEventListener('click', function(e) { if (e.target === el.settingsOverlay) closeSettings(); });
 
-    el.backToListsBtn.addEventListener('click', function() { showView(el.listsView); fetchLists(); });
+    el.backToListsBtn.addEventListener('click', function() { stopSync(); showView(el.listsView); fetchLists(); });
     el.editListBtn.addEventListener('click', function() { openListForm(currentListId); });
     el.scanReceiptBtn.addEventListener('click', startScan);
     el.receiptFileInput.addEventListener('change', function() { handleReceiptFiles(this.files); this.value = ''; });
