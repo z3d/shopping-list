@@ -145,6 +145,30 @@ export default {
         return json({ id: result.meta.last_row_id, name: body.name.trim(), is_template: isTemplate }, 201, cors);
       }
 
+      // Duplicate list
+      const dupMatch = path.match(/^\/api\/lists\/(\d+)\/duplicate$/);
+      if (dupMatch && request.method === 'POST') {
+        const srcId = parseInt(dupMatch[1]);
+        const src = await env.DB.prepare('SELECT * FROM lists WHERE id = ?').bind(srcId).first();
+        if (!src) return json({ error: 'List not found' }, 404, cors);
+
+        const items = await env.DB.prepare('SELECT * FROM items WHERE list_id = ?').bind(srcId).all();
+
+        const newName = src.name + ' (copy)';
+        const result = await env.DB.prepare(
+          'INSERT INTO lists (name, is_template) VALUES (?, ?)'
+        ).bind(newName, src.is_template).run();
+        const newId = result.meta.last_row_id;
+
+        for (const item of items.results) {
+          await env.DB.prepare(
+            'INSERT INTO items (list_id, name, quantity, unit, category, notes, selected) VALUES (?, ?, ?, ?, ?, ?, ?)'
+          ).bind(newId, item.name, item.quantity, item.unit, item.category, item.notes, item.selected || 0).run();
+        }
+
+        return json({ id: newId, name: newName, is_template: src.is_template, item_count: items.results.length }, 201, cors);
+      }
+
       // Update list
       if (listMatch && request.method === 'PUT') {
         const id = parseInt(listMatch[1]);

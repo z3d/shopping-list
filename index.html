@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#141618">
-<meta name="app-version" content="2.6.0">
+<meta name="app-version" content="2.7.0">
 <title>Shopping List</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -527,6 +527,7 @@ html, body {
         <button class="back-btn" id="backToListsBtn">&#8592; Back</button>
         <h2 id="listTitle"></h2>
         <button class="icon-btn" id="scanReceiptBtn" title="Scan receipt" style="display:none">&#128247;</button>
+        <button class="icon-btn" id="dupListBtn" title="Duplicate list" style="display:none">&#10697;</button>
         <button class="icon-btn" id="editListBtn" title="Edit list">&#9998;</button>
       </div>
     </div>
@@ -726,6 +727,7 @@ html, body {
     el.backToListsBtn = document.getElementById('backToListsBtn');
     el.listTitle = document.getElementById('listTitle');
     el.scanReceiptBtn = document.getElementById('scanReceiptBtn');
+    el.dupListBtn = document.getElementById('dupListBtn');
     el.editListBtn = document.getElementById('editListBtn');
     el.summaryBar = document.getElementById('summaryBar');
     el.checkedCount = document.getElementById('checkedCount');
@@ -822,6 +824,7 @@ html, body {
   function updateDetailUI() {
     var tpl = isTemplate();
     el.quickAddBar.style.display = isMaker() ? '' : 'none';
+    el.dupListBtn.style.display = isMaker() ? '' : 'none';
     el.editListBtn.style.display = isMaker() ? '' : 'none';
     el.scanReceiptBtn.style.display = (!tpl) ? '' : 'none';
     el.createShopBtn.style.display = (isMaker() && tpl) ? '' : 'none';
@@ -1197,6 +1200,14 @@ html, body {
     });
   }
 
+  function duplicateList() {
+    api('POST', '/api/lists/' + currentListId + '/duplicate', {}, function(err, data) {
+      if (err) { toast('Error: ' + err); return; }
+      toast('List duplicated: ' + data.name);
+      openList(data.id);
+    });
+  }
+
   /* -- Quick Add -- */
   function quickAddItem() {
     var name = el.quickAddInput.value.trim();
@@ -1473,6 +1484,7 @@ html, body {
     el.settingsOverlay.addEventListener('click', function(e) { if (e.target === el.settingsOverlay) closeSettings(); });
 
     el.backToListsBtn.addEventListener('click', function() { stopSync(); showView(el.listsView); fetchLists(); });
+    el.dupListBtn.addEventListener('click', duplicateList);
     el.editListBtn.addEventListener('click', function() { openListForm(currentListId); });
     el.scanReceiptBtn.addEventListener('click', startScan);
     el.receiptFileInput.addEventListener('change', function() { handleReceiptFiles(this.files); this.value = ''; });
