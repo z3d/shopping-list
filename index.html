@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#141618">
-<meta name="app-version" content="2.7.0">
+<meta name="app-version" content="2.7.1">
 <title>Shopping List</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -894,7 +894,7 @@ html, body {
         row.addEventListener('click', function() { openList(id); });
       })(li.id);
 
-      if (isMaker() && !li.is_template) {
+      if (isMaker()) {
         var wrap = document.createElement('li');
         wrap.className = 'item-wrap';
         wrap.setAttribute('data-list-id', li.id);
