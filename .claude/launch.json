@@ -3,8 +3,8 @@
   "configurations": [
     {
       "name": "shopping-list",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["wrangler", "dev", "--port", "8788", "--config", "/Users/z3d/dev/shopping-list/worker/wrangler.jsonc"],
+      "runtimeExecutable": "/bin/bash",
+      "runtimeArgs": ["-lc", "PATH=/opt/homebrew/bin:$PATH exec npx wrangler dev --port 8788 --config /Users/z3d/dev/shopping-list/worker/wrangler.jsonc"],
       "port": 8788
     }
   ]
