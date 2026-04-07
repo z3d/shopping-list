@@ -34,12 +34,18 @@ export default {
     }
 
     try {
-      // Health check
+      // Health check (public)
       if (path === '/api/health') {
         return json({ status: 'ok', timestamp: Date.now() }, 200, cors);
       }
 
-      // --- Public read routes ---
+      // --- Auth check for all other routes ---
+      if (env.DASHBOARD_TOKEN) {
+        const incoming = request.headers.get('X-Dashboard-Token') || '';
+        if (incoming !== env.DASHBOARD_TOKEN) {
+          return json({ error: 'Unauthorized' }, 401, cors);
+        }
+      }
 
       // List all lists with item counts
       if (path === '/api/lists' && request.method === 'GET') {
@@ -71,14 +77,6 @@ export default {
           'SELECT * FROM items WHERE list_id = ? ' + orderBy
         ).bind(id).all();
         return json({ list, items: items.results }, 200, cors);
-      }
-
-      // --- Auth check for write routes ---
-      if (env.DASHBOARD_TOKEN) {
-        const incoming = request.headers.get('X-Dashboard-Token') || '';
-        if (incoming !== env.DASHBOARD_TOKEN) {
-          return json({ error: 'Unauthorized' }, 401, cors);
-        }
       }
 
       // --- Create shopping list from template ---
