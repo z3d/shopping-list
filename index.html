@@ -443,6 +443,8 @@ html, body {
 }
 .reward-card-tabs button.active { background: var(--accent); color: #141618; border-color: var(--accent); }
 .reward-card-empty-msg { color: var(--text-dim); font-size: 13px; text-align: center; padding: 24px 0; }
+.card-btn-woolworths { font-weight: 800 !important; color: #4ade80 !important; font-size: 15px !important; }
+.card-btn-coles { font-weight: 800 !important; color: #e53935 !important; font-size: 15px !important; }
 
 /* Scan banner */
 .scan-banner {
@@ -538,7 +540,8 @@ html, body {
         <button class="role-badge maker" id="roleBadge" title="Switch role"></button>
         <button class="icon-btn" id="addListBtn" title="New list">+</button>
         <button class="icon-btn" id="reloadBtn" title="Force reload">&#8635;</button>
-        <button class="icon-btn" id="rewardCardsBtn" title="Reward Cards" style="display:none">&#127915;</button>
+        <button class="icon-btn card-btn-woolworths" id="woolworthsCardBtn" title="Woolworths card" style="display:none">W</button>
+        <button class="icon-btn card-btn-coles" id="colesCardBtn" title="Coles card" style="display:none">C</button>
         <button class="icon-btn" id="settingsBtn" title="Settings">&#9881;</button>
       </div>
     </div>
@@ -556,7 +559,8 @@ html, body {
         <button class="back-btn" id="backToListsBtn">&#8592; Back</button>
         <h2 id="listTitle"></h2>
         <button class="icon-btn" id="scanReceiptBtn" title="Scan receipt" style="display:none">&#128247;</button>
-        <button class="icon-btn reward-cards-detail-btn" id="rewardCardsDetailBtn" title="Reward Cards" style="display:none">&#127915;</button>
+        <button class="icon-btn card-btn-woolworths" id="woolworthsCardDetailBtn" title="Woolworths card" style="display:none">W</button>
+        <button class="icon-btn card-btn-coles" id="colesCardDetailBtn" title="Coles card" style="display:none">C</button>
         <button class="icon-btn" id="dupListBtn" title="Duplicate list" style="display:none">&#10697;</button>
         <button class="icon-btn" id="editListBtn" title="Edit list">&#9998;</button>
       </div>
@@ -843,7 +847,10 @@ html, body {
     el.receiptFileInput = document.getElementById('receiptFileInput');
     el.toast = document.getElementById('toast');
 
-    el.rewardCardsBtn = document.getElementById('rewardCardsBtn');
+    el.woolworthsCardBtn = document.getElementById('woolworthsCardBtn');
+    el.colesCardBtn = document.getElementById('colesCardBtn');
+    el.woolworthsCardDetailBtn = document.getElementById('woolworthsCardDetailBtn');
+    el.colesCardDetailBtn = document.getElementById('colesCardDetailBtn');
     el.rewardCardsOverlay = document.getElementById('rewardCardsOverlay');
     el.rewardCardsDisplay = document.getElementById('rewardCardsDisplay');
     el.rewardCardTabs = document.getElementById('rewardCardTabs');
@@ -856,7 +863,6 @@ html, body {
     el.colesUploadBtn = document.getElementById('colesUploadBtn');
     el.colesRemoveBtn = document.getElementById('colesRemoveBtn');
     el.colesFileInput = document.getElementById('colesFileInput');
-    el.rewardCardsDetailBtn = document.getElementById('rewardCardsDetailBtn');
   }
 
   function showView(v) {
@@ -1529,10 +1535,14 @@ html, body {
   }
 
   function updateCardUI() {
-    var show = hasAnyCard();
-    el.rewardCardsBtn.style.display = show ? '' : 'none';
-    el.rewardCardsDetailBtn.style.display = show ? '' : 'none';
     var wCard = getCard('woolworths');
+    var hasW = wCard && wCard.image_data;
+    var cCard = getCard('coles');
+    var hasC = cCard && cCard.image_data;
+    el.woolworthsCardBtn.style.display = hasW ? '' : 'none';
+    el.colesCardBtn.style.display = hasC ? '' : 'none';
+    el.woolworthsCardDetailBtn.style.display = hasW ? '' : 'none';
+    el.colesCardDetailBtn.style.display = hasC ? '' : 'none';
     var cCard = getCard('coles');
     if (wCard && wCard.image_data) {
       el.woolworthsThumb.outerHTML = '<img class="reward-card-thumb" id="woolworthsThumb" src="data:' + escHtml(wCard.media_type) + ';base64,' + wCard.image_data + '">';
@@ -1594,38 +1604,11 @@ html, body {
     });
   }
 
-  function openRewardCards() {
-    var cards = [];
-    for (var i = 0; i < rewardCards.length; i++) {
-      if (rewardCards[i].image_data) cards.push(rewardCards[i]);
-    }
-    if (!cards.length) {
-      el.rewardCardsDisplay.innerHTML = '<div class="reward-card-empty-msg">No reward cards saved. Add them in Settings.</div>';
-      el.rewardCardTabs.style.display = 'none';
-      el.rewardCardsOverlay.classList.add('active');
-      return;
-    }
-    if (cards.length > 1) {
-      el.rewardCardTabs.style.display = 'flex';
-      el.rewardCardTabs.innerHTML = '';
-      for (var j = 0; j < cards.length; j++) {
-        var btn = document.createElement('button');
-        btn.textContent = cards[j].store_name === 'woolworths' ? 'Woolworths' : 'Coles';
-        if (j === 0) btn.className = 'active';
-        (function(idx) {
-          btn.addEventListener('click', function() {
-            showRewardCard(cards, idx);
-            var btns = el.rewardCardTabs.querySelectorAll('button');
-            for (var k = 0; k < btns.length; k++) btns[k].className = '';
-            this.className = 'active';
-          });
-        })(j);
-        el.rewardCardTabs.appendChild(btn);
-      }
-    } else {
-      el.rewardCardTabs.style.display = 'none';
-    }
-    showRewardCard(cards, 0);
+  function openRewardCard(storeName) {
+    var card = getCard(storeName);
+    if (!card || !card.image_data) return;
+    el.rewardCardTabs.style.display = 'none';
+    showRewardCard([card], 0);
     el.rewardCardsOverlay.classList.add('active');
   }
 
@@ -1693,8 +1676,10 @@ html, body {
     el.closeSettingsBtn.addEventListener('click', closeSettings);
     el.settingsOverlay.addEventListener('click', function(e) { if (e.target === el.settingsOverlay) closeSettings(); });
 
-    el.rewardCardsBtn.addEventListener('click', openRewardCards);
-    el.rewardCardsDetailBtn.addEventListener('click', openRewardCards);
+    el.woolworthsCardBtn.addEventListener('click', function() { openRewardCard('woolworths'); });
+    el.colesCardBtn.addEventListener('click', function() { openRewardCard('coles'); });
+    el.woolworthsCardDetailBtn.addEventListener('click', function() { openRewardCard('woolworths'); });
+    el.colesCardDetailBtn.addEventListener('click', function() { openRewardCard('coles'); });
     el.closeRewardCardsBtn.addEventListener('click', closeRewardCards);
     el.rewardCardsOverlay.addEventListener('click', function(e) { if (e.target === el.rewardCardsOverlay) closeRewardCards(); });
     el.woolworthsUploadBtn.addEventListener('click', function() { el.woolworthsFileInput.click(); });
