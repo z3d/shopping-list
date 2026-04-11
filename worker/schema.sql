@@ -24,3 +24,12 @@ CREATE TABLE IF NOT EXISTS items (
 );
 
 CREATE INDEX IF NOT EXISTS idx_items_list_id ON items(list_id);
+
+CREATE TABLE IF NOT EXISTS reward_cards (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  store_name TEXT NOT NULL UNIQUE,
+  image_data TEXT NOT NULL DEFAULT '',
+  media_type TEXT NOT NULL DEFAULT 'image/jpeg',
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);

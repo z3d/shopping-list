@@ -53,11 +53,15 @@ Shopping list manager with two roles (maker/shopper), deployed as a Cloudflare W
 | PUT | `/api/lists/:id/items/:itemId` | Yes | Update item or toggle checked |
 | DELETE | `/api/lists/:id/items/:itemId` | Yes | Delete item |
 | POST | `/api/scan-receipt` | Yes | Scan receipt photo(s) with Claude Vision |
+| GET | `/api/reward-cards` | Yes | List all reward cards with images |
+| PUT | `/api/reward-cards` | Yes | Upload/replace a reward card photo (multipart/form-data) |
+| DELETE | `/api/reward-cards/:store` | Yes | Remove a reward card |
 
 ## Database Schema
 
 - **lists**: id, name, created_at, updated_at
 - **items**: id, list_id, name, quantity, unit, category, notes, checked, checked_by, created_at
+- **reward_cards**: id, store_name (unique), image_data (base64), media_type, created_at, updated_at
 
 ## Version Bumping
 
@@ -65,7 +69,7 @@ Shopping list manager with two roles (maker/shopper), deployed as a Cloudflare W
 
 ## Secrets Required
 
-- `DASHBOARD_TOKEN` (optional) — simple auth token for write operations
+- `DASHBOARD_TOKEN` (required) — auth token for all API operations (except health check)
 - `ANTHROPIC_API_KEY` — for receipt scanning via Claude Vision
 
 ## Setup

@@ -40,11 +40,12 @@ export default {
       }
 
       // --- Auth check for all other routes ---
-      if (env.DASHBOARD_TOKEN) {
-        const incoming = request.headers.get('X-Dashboard-Token') || '';
-        if (incoming !== env.DASHBOARD_TOKEN) {
-          return json({ error: 'Unauthorized' }, 401, cors);
-        }
+      if (!env.DASHBOARD_TOKEN) {
+        return json({ error: 'DASHBOARD_TOKEN not configured' }, 500, cors);
+      }
+      const incoming = request.headers.get('X-Dashboard-Token') || '';
+      if (incoming !== env.DASHBOARD_TOKEN) {
+        return json({ error: 'Unauthorized' }, 401, cors);
       }
 
       // List all lists with item counts
@@ -386,6 +387,51 @@ Rules:
           receipt_items: parsed.receipt_items || [],
           model: claudeData.model || 'unknown'
         }, 200, cors);
+      }
+
+      // GET /api/reward-cards
+      if (path === '/api/reward-cards' && request.method === 'GET') {
+        const result = await env.DB.prepare(
+          'SELECT * FROM reward_cards ORDER BY store_name ASC'
+        ).all();
+        return json({ cards: result.results }, 200, cors);
+      }
+
+      // PUT /api/reward-cards — upload/replace a reward card photo
+      if (path === '/api/reward-cards' && request.method === 'PUT') {
+        const formData = await request.formData();
+        const storeName = (formData.get('store_name') || '').trim().toLowerCase();
+        if (!storeName) return json({ error: 'store_name is required' }, 400, cors);
+
+        const file = formData.get('photo');
+        if (!file || !file.size) return json({ error: 'photo is required' }, 400, cors);
+
+        const buf = await file.arrayBuffer();
+        const bytes = new Uint8Array(buf);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        const base64 = btoa(binary);
+        const mediaType = file.type || 'image/jpeg';
+
+        await env.DB.prepare(`
+          INSERT INTO reward_cards (store_name, image_data, media_type)
+          VALUES (?, ?, ?)
+          ON CONFLICT(store_name) DO UPDATE SET
+            image_data = excluded.image_data,
+            media_type = excluded.media_type,
+            updated_at = datetime('now')
+        `).bind(storeName, base64, mediaType).run();
+
+        return json({ success: true, store_name: storeName }, 200, cors);
+      }
+
+      // DELETE /api/reward-cards/:store
+      if (path.startsWith('/api/reward-cards/') && request.method === 'DELETE') {
+        const storeName = decodeURIComponent(path.split('/api/reward-cards/')[1]).toLowerCase();
+        await env.DB.prepare('DELETE FROM reward_cards WHERE store_name = ?').bind(storeName).run();
+        return json({ success: true }, 200, cors);
       }
 
       return json({ error: 'Not found' }, 404, cors);

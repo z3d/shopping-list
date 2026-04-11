@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#141618">
-<meta name="app-version" content="2.8.2">
+<meta name="app-version" content="2.9.0">
 <title>Shopping List</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -416,6 +416,34 @@ html, body {
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes panelIn { from { transform: scale(0.98); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 
+/* Reward cards */
+.settings-divider { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
+.reward-card-section { margin-bottom: 14px; }
+.reward-card-section label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 8px; color: var(--text-mid); }
+.reward-card-row { display: flex; align-items: center; gap: 10px; }
+.reward-card-thumb { width: 80px; height: 50px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--surface); }
+.reward-card-thumb-empty { width: 80px; height: 50px; border-radius: var(--radius-sm); border: 1px dashed var(--border); background: var(--surface); display: flex; align-items: center; justify-content: center; font-size: 20px; color: var(--text-dim); flex-shrink: 0; }
+.reward-card-actions { display: flex; gap: 6px; }
+.reward-card-actions button {
+  padding: 8px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font-size: 12px; font-weight: 600;
+  cursor: pointer; font-family: 'Inter', sans-serif; transition: background var(--transition);
+}
+.reward-card-actions button:hover { background: var(--surface-hover); }
+.reward-card-actions .remove-card { color: var(--danger); border-color: var(--danger); }
+.reward-cards-display { display: flex; flex-direction: column; gap: 16px; padding: 8px 0; }
+.reward-card-view { text-align: center; }
+.reward-card-view .store-label { font-size: 14px; font-weight: 700; margin-bottom: 10px; color: var(--text-mid); }
+.reward-card-view img { max-width: 100%; border-radius: var(--radius); border: 1px solid var(--border); }
+.reward-card-tabs { display: flex; gap: 8px; margin-bottom: 16px; }
+.reward-card-tabs button {
+  flex: 1; padding: 10px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--surface); color: var(--text); font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: 'Inter', sans-serif; transition: background var(--transition);
+}
+.reward-card-tabs button.active { background: var(--accent); color: #141618; border-color: var(--accent); }
+.reward-card-empty-msg { color: var(--text-dim); font-size: 13px; text-align: center; padding: 24px 0; }
+
 /* Scan banner */
 .scan-banner {
   display: none; position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
@@ -510,6 +538,7 @@ html, body {
         <button class="role-badge maker" id="roleBadge" title="Switch role"></button>
         <button class="icon-btn" id="addListBtn" title="New list">+</button>
         <button class="icon-btn" id="reloadBtn" title="Force reload">&#8635;</button>
+        <button class="icon-btn" id="rewardCardsBtn" title="Reward Cards" style="display:none">&#127915;</button>
         <button class="icon-btn" id="settingsBtn" title="Settings">&#9881;</button>
       </div>
     </div>
@@ -660,9 +689,45 @@ html, body {
         <option value="shopper">Shopper (check off only)</option>
       </select>
     </div>
+    <hr class="settings-divider">
+    <h3 style="font-size:14px;font-weight:700;margin-bottom:14px;color:var(--text-mid)">Reward Cards</h3>
+    <div class="reward-card-section">
+      <label>Woolworths Everyday Rewards</label>
+      <div class="reward-card-row">
+        <div class="reward-card-thumb-empty" id="woolworthsThumb">&#128247;</div>
+        <div class="reward-card-actions">
+          <button id="woolworthsUploadBtn">Upload</button>
+          <button class="remove-card" id="woolworthsRemoveBtn" style="display:none">Remove</button>
+        </div>
+      </div>
+      <input type="file" accept="image/*" id="woolworthsFileInput" style="display:none">
+    </div>
+    <div class="reward-card-section">
+      <label>Coles Flybuys</label>
+      <div class="reward-card-row">
+        <div class="reward-card-thumb-empty" id="colesThumb">&#128247;</div>
+        <div class="reward-card-actions">
+          <button id="colesUploadBtn">Upload</button>
+          <button class="remove-card" id="colesRemoveBtn" style="display:none">Remove</button>
+        </div>
+      </div>
+      <input type="file" accept="image/*" id="colesFileInput" style="display:none">
+    </div>
     <div class="panel-actions">
       <button class="btn-primary" id="saveSettingsBtn">Save</button>
       <button class="btn-secondary" id="closeSettingsBtn">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- REWARD CARDS OVERLAY -->
+<div class="overlay" id="rewardCardsOverlay">
+  <div class="panel">
+    <h2>Reward Cards</h2>
+    <div id="rewardCardTabs" class="reward-card-tabs" style="display:none"></div>
+    <div id="rewardCardsDisplay" class="rewards-cards-display"></div>
+    <div class="panel-actions">
+      <button class="btn-secondary" id="closeRewardCardsBtn">Close</button>
     </div>
   </div>
 </div>
@@ -687,6 +752,7 @@ html, body {
   var editingItemId = null;
   var editingListId = null;
   var scanMatches = [];
+  var rewardCards = [];
   var pollTimer = null;
 
   function loadConfig() {
@@ -775,6 +841,20 @@ html, body {
     el.scanBannerText = document.getElementById('scanBannerText');
     el.receiptFileInput = document.getElementById('receiptFileInput');
     el.toast = document.getElementById('toast');
+
+    el.rewardCardsBtn = document.getElementById('rewardCardsBtn');
+    el.rewardCardsOverlay = document.getElementById('rewardCardsOverlay');
+    el.rewardCardsDisplay = document.getElementById('rewardCardsDisplay');
+    el.rewardCardTabs = document.getElementById('rewardCardTabs');
+    el.closeRewardCardsBtn = document.getElementById('closeRewardCardsBtn');
+    el.woolworthsThumb = document.getElementById('woolworthsThumb');
+    el.woolworthsUploadBtn = document.getElementById('woolworthsUploadBtn');
+    el.woolworthsRemoveBtn = document.getElementById('woolworthsRemoveBtn');
+    el.woolworthsFileInput = document.getElementById('woolworthsFileInput');
+    el.colesThumb = document.getElementById('colesThumb');
+    el.colesUploadBtn = document.getElementById('colesUploadBtn');
+    el.colesRemoveBtn = document.getElementById('colesRemoveBtn');
+    el.colesFileInput = document.getElementById('colesFileInput');
   }
 
   function showView(v) {
@@ -1431,11 +1511,137 @@ html, body {
     }
   }
 
+  /* -- Reward Cards -- */
+  function getCard(store) {
+    for (var i = 0; i < rewardCards.length; i++) {
+      if (rewardCards[i].store_name === store) return rewardCards[i];
+    }
+    return null;
+  }
+
+  function hasAnyCard() {
+    for (var i = 0; i < rewardCards.length; i++) {
+      if (rewardCards[i].image_data) return true;
+    }
+    return false;
+  }
+
+  function updateCardUI() {
+    el.rewardCardsBtn.style.display = hasAnyCard() ? '' : 'none';
+    var wCard = getCard('woolworths');
+    var cCard = getCard('coles');
+    if (wCard && wCard.image_data) {
+      el.woolworthsThumb.outerHTML = '<img class="reward-card-thumb" id="woolworthsThumb" src="data:' + escHtml(wCard.media_type) + ';base64,' + wCard.image_data + '">';
+      el.woolworthsThumb = document.getElementById('woolworthsThumb');
+      el.woolworthsRemoveBtn.style.display = '';
+    } else {
+      if (el.woolworthsThumb.tagName === 'IMG') {
+        el.woolworthsThumb.outerHTML = '<div class="reward-card-thumb-empty" id="woolworthsThumb">&#128247;</div>';
+        el.woolworthsThumb = document.getElementById('woolworthsThumb');
+      }
+      el.woolworthsRemoveBtn.style.display = 'none';
+    }
+    if (cCard && cCard.image_data) {
+      el.colesThumb.outerHTML = '<img class="reward-card-thumb" id="colesThumb" src="data:' + escHtml(cCard.media_type) + ';base64,' + cCard.image_data + '">';
+      el.colesThumb = document.getElementById('colesThumb');
+      el.colesRemoveBtn.style.display = '';
+    } else {
+      if (el.colesThumb.tagName === 'IMG') {
+        el.colesThumb.outerHTML = '<div class="reward-card-thumb-empty" id="colesThumb">&#128247;</div>';
+        el.colesThumb = document.getElementById('colesThumb');
+      }
+      el.colesRemoveBtn.style.display = 'none';
+    }
+  }
+
+  function fetchRewardCards() {
+    api('GET', '/api/reward-cards', null, function(err, data) {
+      if (err) return;
+      rewardCards = (data && data.cards) ? data.cards : [];
+      updateCardUI();
+    });
+  }
+
+  function uploadRewardCard(storeName, file) {
+    if (!config.workerUrl) { toast('Set Worker URL first'); return; }
+    var fd = new FormData();
+    fd.append('store_name', storeName);
+    fd.append('photo', file);
+    var xhr = new XMLHttpRequest();
+    xhr.open('PUT', config.workerUrl + '/api/reward-cards');
+    if (config.token) xhr.setRequestHeader('X-Dashboard-Token', config.token);
+    xhr.onload = function() {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        toast(storeName.charAt(0).toUpperCase() + storeName.slice(1) + ' card saved');
+        fetchRewardCards();
+      } else {
+        try { var d = JSON.parse(xhr.responseText); toast(d.error || 'Upload failed'); } catch(e) { toast('Upload failed'); }
+      }
+    };
+    xhr.onerror = function() { toast('Network error'); };
+    xhr.send(fd);
+  }
+
+  function deleteRewardCard(storeName) {
+    api('DELETE', '/api/reward-cards/' + encodeURIComponent(storeName), null, function(err) {
+      if (err) { toast('Error: ' + err); return; }
+      toast(storeName.charAt(0).toUpperCase() + storeName.slice(1) + ' card removed');
+      fetchRewardCards();
+    });
+  }
+
+  function openRewardCards() {
+    var cards = [];
+    for (var i = 0; i < rewardCards.length; i++) {
+      if (rewardCards[i].image_data) cards.push(rewardCards[i]);
+    }
+    if (!cards.length) {
+      el.rewardCardsDisplay.innerHTML = '<div class="reward-card-empty-msg">No reward cards saved. Add them in Settings.</div>';
+      el.rewardCardTabs.style.display = 'none';
+      el.rewardCardsOverlay.classList.add('active');
+      return;
+    }
+    if (cards.length > 1) {
+      el.rewardCardTabs.style.display = 'flex';
+      el.rewardCardTabs.innerHTML = '';
+      for (var j = 0; j < cards.length; j++) {
+        var btn = document.createElement('button');
+        btn.textContent = cards[j].store_name === 'woolworths' ? 'Woolworths' : 'Coles';
+        if (j === 0) btn.className = 'active';
+        (function(idx) {
+          btn.addEventListener('click', function() {
+            showRewardCard(cards, idx);
+            var btns = el.rewardCardTabs.querySelectorAll('button');
+            for (var k = 0; k < btns.length; k++) btns[k].className = '';
+            this.className = 'active';
+          });
+        })(j);
+        el.rewardCardTabs.appendChild(btn);
+      }
+    } else {
+      el.rewardCardTabs.style.display = 'none';
+    }
+    showRewardCard(cards, 0);
+    el.rewardCardsOverlay.classList.add('active');
+  }
+
+  function showRewardCard(cards, idx) {
+    var c = cards[idx];
+    var label = c.store_name === 'woolworths' ? 'Woolworths Everyday Rewards' : 'Coles Flybuys';
+    el.rewardCardsDisplay.innerHTML = '<div class="reward-card-view">' +
+      '<div class="store-label">' + escHtml(label) + '</div>' +
+      '<img src="data:' + escHtml(c.media_type) + ';base64,' + c.image_data + '">' +
+      '</div>';
+  }
+
+  function closeRewardCards() { el.rewardCardsOverlay.classList.remove('active'); }
+
   /* -- Settings -- */
   function openSettings() {
     el.workerUrlInput.value = config.workerUrl;
     el.tokenInput.value = config.token;
     el.roleSelect.value = config.role;
+    updateCardUI();
     el.settingsOverlay.classList.add('active');
   }
 
@@ -1482,6 +1688,22 @@ html, body {
     el.saveSettingsBtn.addEventListener('click', saveSettings);
     el.closeSettingsBtn.addEventListener('click', closeSettings);
     el.settingsOverlay.addEventListener('click', function(e) { if (e.target === el.settingsOverlay) closeSettings(); });
+
+    el.rewardCardsBtn.addEventListener('click', openRewardCards);
+    el.closeRewardCardsBtn.addEventListener('click', closeRewardCards);
+    el.rewardCardsOverlay.addEventListener('click', function(e) { if (e.target === el.rewardCardsOverlay) closeRewardCards(); });
+    el.woolworthsUploadBtn.addEventListener('click', function() { el.woolworthsFileInput.click(); });
+    el.colesUploadBtn.addEventListener('click', function() { el.colesFileInput.click(); });
+    el.woolworthsFileInput.addEventListener('change', function() {
+      if (this.files[0]) uploadRewardCard('woolworths', this.files[0]);
+      this.value = '';
+    });
+    el.colesFileInput.addEventListener('change', function() {
+      if (this.files[0]) uploadRewardCard('coles', this.files[0]);
+      this.value = '';
+    });
+    el.woolworthsRemoveBtn.addEventListener('click', function() { deleteRewardCard('woolworths'); });
+    el.colesRemoveBtn.addEventListener('click', function() { deleteRewardCard('coles'); });
 
     el.backToListsBtn.addEventListener('click', function() { stopSync(); showView(el.listsView); fetchLists(); });
     el.dupListBtn.addEventListener('click', duplicateList);
@@ -1685,7 +1907,7 @@ html, body {
     updateRoleUI();
     initEvents();
     checkVersion();
-    if (config.workerUrl) { fetchLists(); }
+    if (config.workerUrl) { fetchLists(); fetchRewardCards(); }
     else {
       el.listsLoading.style.display = 'none';
       el.listsEmpty.style.display = 'block';
