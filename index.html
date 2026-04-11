@@ -556,6 +556,7 @@ html, body {
         <button class="back-btn" id="backToListsBtn">&#8592; Back</button>
         <h2 id="listTitle"></h2>
         <button class="icon-btn" id="scanReceiptBtn" title="Scan receipt" style="display:none">&#128247;</button>
+        <button class="icon-btn reward-cards-detail-btn" id="rewardCardsDetailBtn" title="Reward Cards" style="display:none">&#127915;</button>
         <button class="icon-btn" id="dupListBtn" title="Duplicate list" style="display:none">&#10697;</button>
         <button class="icon-btn" id="editListBtn" title="Edit list">&#9998;</button>
       </div>
@@ -855,6 +856,7 @@ html, body {
     el.colesUploadBtn = document.getElementById('colesUploadBtn');
     el.colesRemoveBtn = document.getElementById('colesRemoveBtn');
     el.colesFileInput = document.getElementById('colesFileInput');
+    el.rewardCardsDetailBtn = document.getElementById('rewardCardsDetailBtn');
   }
 
   function showView(v) {
@@ -1527,7 +1529,9 @@ html, body {
   }
 
   function updateCardUI() {
-    el.rewardCardsBtn.style.display = hasAnyCard() ? '' : 'none';
+    var show = hasAnyCard();
+    el.rewardCardsBtn.style.display = show ? '' : 'none';
+    el.rewardCardsDetailBtn.style.display = show ? '' : 'none';
     var wCard = getCard('woolworths');
     var cCard = getCard('coles');
     if (wCard && wCard.image_data) {
@@ -1690,6 +1694,7 @@ html, body {
     el.settingsOverlay.addEventListener('click', function(e) { if (e.target === el.settingsOverlay) closeSettings(); });
 
     el.rewardCardsBtn.addEventListener('click', openRewardCards);
+    el.rewardCardsDetailBtn.addEventListener('click', openRewardCards);
     el.closeRewardCardsBtn.addEventListener('click', closeRewardCards);
     el.rewardCardsOverlay.addEventListener('click', function(e) { if (e.target === el.rewardCardsOverlay) closeRewardCards(); });
     el.woolworthsUploadBtn.addEventListener('click', function() { el.woolworthsFileInput.click(); });
