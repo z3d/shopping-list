@@ -35,8 +35,9 @@ Shopping list manager with two roles (maker/shopper), deployed as a Cloudflare W
 
 - CRUD for shopping lists and items
 - Items grouped by category with progress tracking
-- Quick-add bar with smart parsing ("2kg chicken" → qty: 2, unit: kg, name: chicken)
+- Quick-add bar with deterministic parsing ("2kg chicken" → qty: 2, unit: kg, name: chicken), separate category control, and duplicate detection
 - Receipt scanning via Claude Vision — photographs a store receipt, extracts items, fuzzy-matches against list, and checks off matched items
+- Reward-card photo shortcuts for Woolworths Everyday Rewards and Coles Flybuys
 - Auto-update system via version meta tag
 
 ## API Routes
@@ -44,13 +45,15 @@ Shopping list manager with two roles (maker/shopper), deployed as a Cloudflare W
 | Method | Path | Auth | Purpose |
 |--------|------|------|---------|
 | GET | `/api/health` | No | Health check |
-| GET | `/api/lists` | No | List all lists with item counts |
-| GET | `/api/lists/:id` | No | Get list with all items |
+| GET | `/api/lists` | Yes | List all lists with item counts |
+| GET | `/api/lists/:id` | Yes | Get list with all items |
 | POST | `/api/lists` | Yes | Create list |
 | PUT | `/api/lists/:id` | Yes | Update list |
 | DELETE | `/api/lists/:id` | Yes | Delete list + items |
+| POST | `/api/lists/:id/duplicate` | Yes | Duplicate a list |
+| POST | `/api/lists/:id/create-shop` | Yes | Create a dated shopping list from a template |
 | POST | `/api/lists/:id/items` | Yes | Create item |
-| PUT | `/api/lists/:id/items/:itemId` | Yes | Update item or toggle checked |
+| PUT | `/api/lists/:id/items/:itemId` | Yes | Update item, toggle checked, or toggle selected |
 | DELETE | `/api/lists/:id/items/:itemId` | Yes | Delete item |
 | POST | `/api/scan-receipt` | Yes | Scan receipt photo(s) with Claude Vision |
 | GET | `/api/reward-cards` | Yes | List all reward cards with images |
@@ -59,8 +62,8 @@ Shopping list manager with two roles (maker/shopper), deployed as a Cloudflare W
 
 ## Database Schema
 
-- **lists**: id, name, created_at, updated_at
-- **items**: id, list_id, name, quantity, unit, category, notes, checked, checked_by, created_at
+- **lists**: id, name, is_template, created_at, updated_at
+- **items**: id, list_id, name, quantity, unit, category, notes, checked, checked_by, selected, created_at
 - **reward_cards**: id, store_name (unique), image_data (base64), media_type, created_at, updated_at
 
 ## Version Bumping

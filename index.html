@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#141618">
-<meta name="app-version" content="2.9.0">
+<meta name="app-version" content="2.10.0">
 <title>Shopping List</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -573,8 +573,8 @@ html, body {
     </div>
 
     <div class="quick-add" id="quickAddBar">
-      <input type="number" id="quickAddQty" placeholder="Qty" value="1" min="1" style="width:56px;flex:none;text-align:center">
-      <input type="text" id="quickAddInput" placeholder="Add item..." autocomplete="off" style="flex:1;min-width:120px">
+      <input type="number" id="quickAddQty" placeholder="Qty" value="1" min="0" step="any" style="width:56px;flex:none;text-align:center">
+      <input type="text" id="quickAddInput" placeholder="Add item... e.g. 2kg chicken" autocomplete="off" style="flex:1;min-width:120px">
       <select id="quickAddCategory" style="flex:none">
         <option value="">No category</option>
         <option value="Fruit & Veg">Fruit & Veg</option>
@@ -1163,7 +1163,7 @@ html, body {
 
         row.innerHTML =
           '<button class="item-check' + (sel ? ' selected' : '') + '" data-id="' + item.id + '">&#10003;</button>' +
-          '<input type="number" class="item-qty-inline" data-id="' + item.id + '" value="' + escHtml(item.quantity || '1') + '" min="1"' + (isMaker() ? '' : ' disabled') + '>' +
+          '<input type="number" class="item-qty-inline" data-id="' + item.id + '" value="' + escHtml(item.quantity || '1') + '" min="0" step="any"' + (isMaker() ? '' : ' disabled') + '>' +
           '<div class="item-info">' +
             '<div class="item-name">' + escHtml(item.name) + '</div>' +
             (item.notes ? '<div class="item-detail">' + escHtml(item.notes) + '</div>' : '') +
@@ -1299,17 +1299,36 @@ html, body {
 
   /* -- Quick Add -- */
   function quickAddItem() {
-    var name = el.quickAddInput.value.trim();
+    var parsed = parseQuickAddText(el.quickAddInput.value, el.quickAddQty.value || '1');
+    var name = parsed.name.trim();
     if (!name) return;
-    var qty = el.quickAddQty.value || '1';
+    var qty = parsed.quantity || '1';
+    var unit = parsed.unit || '';
+    var cat = el.quickAddCategory.value || '';
+
     // If item already exists, select it with the given qty instead of duplicating
     for (var d = 0; d < currentItems.length; d++) {
       if (currentItems[d].name.toLowerCase() === name.toLowerCase()) {
         var existing = currentItems[d];
-        api('PUT', '/api/lists/' + currentListId + '/items/' + existing.id, { selected: true, quantity: qty }, function(err) {
+        var templateList = isTemplate();
+        var update = templateList
+          ? { selected: true, quantity: qty }
+          : {
+              name: existing.name,
+              quantity: qty,
+              unit: unit || existing.unit || '',
+              category: cat || existing.category || '',
+              notes: existing.notes || ''
+            };
+        if (templateList && unit) update.unit = unit;
+        if (templateList && cat) update.category = cat;
+
+        api('PUT', '/api/lists/' + currentListId + '/items/' + existing.id, update, function(err) {
           if (err) { toast('Error: ' + err); return; }
-          existing.selected = 1;
+          if (templateList) existing.selected = 1;
           existing.quantity = qty;
+          if (unit) existing.unit = unit;
+          if (cat) existing.category = cat;
           el.quickAddInput.value = '';
           el.quickAddQty.value = '1';
           renderItems();
@@ -1318,8 +1337,7 @@ html, body {
         return;
       }
     }
-    var cat = el.quickAddCategory.value || '';
-    var item = { name: name, quantity: qty, unit: '', category: cat, notes: '' };
+    var item = { name: name, quantity: qty, unit: unit, category: cat, notes: '' };
 
     api('POST', '/api/lists/' + currentListId + '/items', item, function(err, data) {
       if (err) { toast('Error: ' + err); return; }
@@ -1649,6 +1667,66 @@ html, body {
   function escHtml(str) {
     if (!str) return '';
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  var QUICK_ADD_UNITS = {
+    kg: 'kg', kgs: 'kg', kilogram: 'kg', kilograms: 'kg', kilo: 'kg', kilos: 'kg',
+    g: 'g', gram: 'g', grams: 'g',
+    l: 'L', litre: 'L', litres: 'L', liter: 'L', liters: 'L',
+    ml: 'ml', millilitre: 'ml', millilitres: 'ml', milliliter: 'ml', milliliters: 'ml',
+    pack: 'pack', packs: 'packs', packet: 'packet', packets: 'packets', pkt: 'pkt', pkts: 'pkts',
+    box: 'box', boxes: 'boxes', bag: 'bag', bags: 'bags', bunch: 'bunch', bunches: 'bunches',
+    piece: 'piece', pieces: 'pieces', pc: 'piece', pcs: 'pieces',
+    bottle: 'bottle', bottles: 'bottles', can: 'can', cans: 'cans', tin: 'tin', tins: 'tins',
+    roll: 'roll', rolls: 'rolls', dozen: 'dozen', tray: 'tray', trays: 'trays',
+    loaf: 'loaf', loaves: 'loaves'
+  };
+
+  function normalizeQuickQty(qty) {
+    qty = String(qty || '').trim();
+    if (qty.charAt(0) === '.') return '0' + qty;
+    return qty || '1';
+  }
+
+  function parseQuickAddText(raw, fallbackQty) {
+    var text = (raw || '').trim().replace(/\u00d7/g, 'x').replace(/\s+/g, ' ');
+    var parsed = {
+      name: text,
+      quantity: normalizeQuickQty(fallbackQty || '1'),
+      unit: ''
+    };
+    if (!text) return parsed;
+
+    var qtyPattern = '(\\d+(?:\\.\\d+)?|\\.\\d+)';
+    var qtyOnly = new RegExp('^' + qtyPattern + '\\s+(.*)$', 'i');
+    var qtyWithX = new RegExp('^' + qtyPattern + '\\s*x\\s+(.+)$', 'i');
+    var qtyWithUnit = new RegExp('^' + qtyPattern + '\\s*-?\\s*([a-zA-Z]+)\\s+(.+)$', 'i');
+
+    var match = text.match(qtyWithX);
+    if (match) {
+      parsed.quantity = normalizeQuickQty(match[1]);
+      parsed.name = match[2].trim();
+      return parsed;
+    }
+
+    match = text.match(qtyWithUnit);
+    if (match) {
+      var unit = QUICK_ADD_UNITS[match[2].toLowerCase()];
+      if (unit) {
+        parsed.quantity = normalizeQuickQty(match[1]);
+        parsed.unit = unit;
+        parsed.name = match[3].trim();
+        return parsed;
+      }
+    }
+
+    match = text.match(qtyOnly);
+    if (match) {
+      parsed.quantity = normalizeQuickQty(match[1]);
+      parsed.name = match[2].trim();
+    }
+
+    return parsed;
   }
 
   /* -- Events -- */

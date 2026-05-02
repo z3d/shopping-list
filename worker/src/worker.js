@@ -240,10 +240,18 @@ export default {
         else if (body.selected !== undefined && !body.name && body.checked === undefined) {
           const updates = ['selected = ?'];
           const values = [body.selected ? 1 : 0];
-          // Allow updating quantity at the same time as selecting
+          // Allow quick-add to update common shopping fields while selecting.
           if (body.quantity !== undefined) {
             updates.push('quantity = ?');
             values.push(body.quantity);
+          }
+          if (body.unit !== undefined) {
+            updates.push('unit = ?');
+            values.push(body.unit);
+          }
+          if (body.category !== undefined) {
+            updates.push('category = ?');
+            values.push(body.category);
           }
           values.push(itemId);
           await env.DB.prepare(
