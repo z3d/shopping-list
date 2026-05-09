@@ -9,7 +9,7 @@ A two-role shopping list manager (maker / shopper) deployed as a Cloudflare Work
   - **Maker** — creates and edits lists, picks items from templates
   - **Shopper** — checks items off, scans receipts
 - Templates: keep a master list (e.g. "Groceries"), select items each week, generate a dated shopping list
-- Quick-add bar with deterministic parsing (`2kg chicken` → qty `2`, unit `kg`, name `chicken`), separate category control, and duplicate detection
+- Quick-add bar that filters visible items as you type, with deterministic parsing (`2kg chicken` → qty `2`, unit `kg`, name `chicken`), separate category control, and duplicate detection
 - Receipt scanning via Claude Vision — photograph a receipt, items are extracted and fuzzy-matched against the list, then checked off automatically. Receipt images are sent to the Anthropic API (`api.anthropic.com`) and are not stored server-side. Don't upload receipts containing information you wouldn't want sent to a third-party AI provider.
 - Multi-shopper sync (5s polling) so two people can shop the same list together
 - Reward-card photo shortcuts for Woolworths Everyday Rewards and Coles Flybuys

@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#141618">
-<meta name="app-version" content="2.10.0">
+<meta name="app-version" content="2.11.0">
 <title>Shopping List</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -760,6 +760,7 @@ html, body {
   var scanMatches = [];
   var rewardCards = [];
   var pollTimer = null;
+  var itemFilterText = '';
 
   function loadConfig() {
     try {
@@ -1000,6 +1001,8 @@ html, body {
   function openList(id) {
     stopSync();
     currentListId = id;
+    itemFilterText = '';
+    if (el.quickAddInput) el.quickAddInput.value = '';
     showView(el.listDetailView);
     el.listTitle.textContent = 'Loading...';
     el.itemsContainer.innerHTML = '';
@@ -1019,17 +1022,31 @@ html, body {
   function renderItems() {
     el.itemsContainer.innerHTML = '';
     if (currentItems.length === 0) {
+      el.itemsEmpty.textContent = 'No items yet.';
       el.itemsEmpty.style.display = 'block';
       updateSummary();
       return;
     }
+
+    var visibleItems = [];
+    for (var f = 0; f < currentItems.length; f++) {
+      if (itemMatchesFilter(currentItems[f], itemFilterText)) visibleItems.push(currentItems[f]);
+    }
+
+    if (visibleItems.length === 0) {
+      el.itemsEmpty.textContent = 'No matching items.';
+      el.itemsEmpty.style.display = 'block';
+      updateSummary();
+      return;
+    }
+
     el.itemsEmpty.style.display = 'none';
 
     // Group by category
     var categories = {};
     var uncategorised = [];
-    for (var i = 0; i < currentItems.length; i++) {
-      var item = currentItems[i];
+    for (var i = 0; i < visibleItems.length; i++) {
+      var item = visibleItems[i];
       var cat = item.category || '';
       if (!cat) uncategorised.push(item);
       else {
@@ -1330,6 +1347,7 @@ html, body {
           if (unit) existing.unit = unit;
           if (cat) existing.category = cat;
           el.quickAddInput.value = '';
+          itemFilterText = '';
           el.quickAddQty.value = '1';
           renderItems();
           el.quickAddInput.focus();
@@ -1342,6 +1360,7 @@ html, body {
     api('POST', '/api/lists/' + currentListId + '/items', item, function(err, data) {
       if (err) { toast('Error: ' + err); return; }
       el.quickAddInput.value = '';
+      itemFilterText = '';
       el.quickAddQty.value = '1';
       currentItems.push(data);
       renderItems();
@@ -1669,6 +1688,33 @@ html, body {
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
+  function normalizeFilterText(str) {
+    return (str || '').toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+
+  function itemMatchesFilter(item, filter) {
+    filter = normalizeFilterText(filter);
+    if (!filter) return true;
+
+    var haystack = normalizeFilterText([
+      item.name || '',
+      item.category || '',
+      item.notes || '',
+      item.unit || ''
+    ].join(' '));
+    var parts = filter.split(' ');
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i] && haystack.indexOf(parts[i]) === -1) return false;
+    }
+    return true;
+  }
+
+  function updateItemFilterFromQuickAdd() {
+    var parsed = parseQuickAddText(el.quickAddInput.value, el.quickAddQty.value || '1');
+    itemFilterText = parsed.name.trim();
+    renderItems();
+  }
+
   var QUICK_ADD_UNITS = {
     kg: 'kg', kgs: 'kg', kilogram: 'kg', kilograms: 'kg', kilo: 'kg', kilos: 'kg',
     g: 'g', gram: 'g', grams: 'g',
@@ -1781,6 +1827,7 @@ html, body {
     el.receiptFileInput.addEventListener('change', function() { handleReceiptFiles(this.files); this.value = ''; });
 
     el.quickAddBtn.addEventListener('click', quickAddItem);
+    el.quickAddInput.addEventListener('input', updateItemFilterFromQuickAdd);
     el.quickAddInput.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' || e.keyCode === 13) quickAddItem();
     });

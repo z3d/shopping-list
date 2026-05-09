@@ -35,7 +35,7 @@ Shopping list manager with two roles (maker/shopper), deployed as a Cloudflare W
 
 - CRUD for shopping lists and items
 - Items grouped by category with progress tracking
-- Quick-add bar with deterministic parsing ("2kg chicken" → qty: 2, unit: kg, name: chicken), separate category control, and duplicate detection
+- Quick-add bar that filters visible items as you type, with deterministic parsing ("2kg chicken" → qty: 2, unit: kg, name: chicken), separate category control, and duplicate detection
 - Receipt scanning via Claude Vision — photographs a store receipt, extracts items, fuzzy-matches against list, and checks off matched items
 - Reward-card photo shortcuts for Woolworths Everyday Rewards and Coles Flybuys
 - Auto-update system via version meta tag
