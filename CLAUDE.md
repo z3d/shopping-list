@@ -42,7 +42,17 @@ Shopping list manager with two roles (maker/shopper), deployed as a Cloudflare W
 - Receipt scanning via Claude Vision — photographs a store receipt, extracts items, fuzzy-matches against list, and checks off matched items
 - Reward-card photo shortcuts for Woolworths Everyday Rewards and Coles Flybuys
 - Auto-update system via version meta tag
+- JSON export/import from Settings → Data (see below)
 - Every view and overlay pushes a history entry, so hardware/browser Back steps through the app instead of leaving it
+
+## Export / Import
+
+Settings → Data. Mirrors the recipes app.
+
+- Export downloads `shopping-list-YYYY-MM-DD.json`: `{ version, exported_at, lists: [{ name, is_template, created_at, items: [...] }] }`. Checked/selected state is preserved.
+- `EXPORT_VERSION` in `worker/src/worker.js` is the format version. Bump it when the payload shape changes; import rejects files stamped newer than it understands.
+- **Import only ever adds.** It creates new lists and never updates or deletes, so importing the same file twice gives you two copies. This is deliberate — it means an import can't destroy existing data. Entries with a blank name are skipped and counted.
+- Reward cards are excluded: they're photos of loyalty barcodes, and exports get emailed around.
 
 ## Offline behaviour
 
@@ -68,6 +78,8 @@ The app is used inside supermarkets, so it has to survive bad signal:
 | POST | `/api/lists/:id/items` | Yes | Create item |
 | PUT | `/api/lists/:id/items/:itemId` | Yes | Update item, toggle checked, or toggle selected |
 | DELETE | `/api/lists/:id/items/:itemId` | Yes | Delete item |
+| GET | `/api/export` | Yes | Export all lists + items as JSON (excludes reward cards) |
+| POST | `/api/import` | Yes | Import lists + items; always creates new, never overwrites |
 | POST | `/api/scan-receipt` | Yes | Scan receipt photo(s) with Claude Vision |
 | GET | `/api/reward-cards` | Yes | List all reward cards with images |
 | PUT | `/api/reward-cards` | Yes | Upload/replace a reward card photo (multipart/form-data) |

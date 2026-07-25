@@ -7,6 +7,10 @@
  * POST /api/lists/:id/create-shop copies selected items to a new dated list.
  */
 
+/* Format version of the /api/export payload. Bump when the shape changes;
+   import refuses files stamped newer than this. */
+const EXPORT_VERSION = 1;
+
 function json(data, status, cors) {
   return new Response(JSON.stringify(data), {
     status: status || 200,
@@ -440,6 +444,112 @@ Rules:
         const storeName = decodeURIComponent(path.split('/api/reward-cards/')[1]).toLowerCase();
         await env.DB.prepare('DELETE FROM reward_cards WHERE store_name = ?').bind(storeName).run();
         return json({ success: true }, 200, cors);
+      }
+
+      // Export every list with its items as JSON.
+      // Reward cards are deliberately left out: they are photos of loyalty
+      // barcodes, and an export is a file people email around.
+      if (path === '/api/export' && request.method === 'GET') {
+        const lists = await env.DB.prepare(
+          'SELECT * FROM lists ORDER BY is_template DESC, name ASC'
+        ).all();
+        const items = await env.DB.prepare(
+          'SELECT * FROM items ORDER BY list_id ASC, category ASC, name ASC'
+        ).all();
+
+        const itemsByList = {};
+        for (const item of items.results) {
+          if (!itemsByList[item.list_id]) itemsByList[item.list_id] = [];
+          itemsByList[item.list_id].push({
+            name: item.name,
+            quantity: item.quantity,
+            unit: item.unit,
+            category: item.category,
+            notes: item.notes,
+            checked: item.checked,
+            checked_by: item.checked_by,
+            selected: item.selected
+          });
+        }
+
+        const exportData = {
+          version: EXPORT_VERSION,
+          exported_at: new Date().toISOString(),
+          lists: lists.results.map(l => ({
+            name: l.name,
+            is_template: l.is_template,
+            created_at: l.created_at,
+            items: itemsByList[l.id] || []
+          }))
+        };
+
+        return new Response(JSON.stringify(exportData, null, 2), {
+          headers: Object.assign({
+            'Content-Type': 'application/json',
+            'Content-Disposition': 'attachment; filename="shopping-list-export.json"'
+          }, cors)
+        });
+      }
+
+      // Import lists + items. Always creates new lists — it never updates or
+      // deletes anything, so importing the same file twice gives you two
+      // copies rather than silently overwriting what's there.
+      if (path === '/api/import' && request.method === 'POST') {
+        const body = await request.json();
+        const lists = body.lists || body;
+        if (!Array.isArray(lists)) {
+          return json({ error: 'Expected { lists: [...] } or an array' }, 400, cors);
+        }
+        if (body.version && body.version > EXPORT_VERSION) {
+          return json({
+            error: 'This file was made by a newer version of the app (format v' +
+              body.version + ', this app reads v' + EXPORT_VERSION + ')'
+          }, 400, cors);
+        }
+
+        let listsImported = 0;
+        let itemsImported = 0;
+        let skipped = 0;
+
+        for (const l of lists) {
+          if (!l || !l.name || !String(l.name).trim()) { skipped++; continue; }
+          try {
+            const created = await env.DB.prepare(
+              'INSERT INTO lists (name, is_template) VALUES (?, ?)'
+            ).bind(String(l.name).trim(), l.is_template ? 1 : 0).run();
+            const newListId = created.meta.last_row_id;
+            listsImported++;
+
+            const listItems = Array.isArray(l.items) ? l.items : [];
+            for (const item of listItems) {
+              if (!item || !item.name || !String(item.name).trim()) { skipped++; continue; }
+              await env.DB.prepare(
+                `INSERT INTO items (list_id, name, quantity, unit, category, notes, checked, checked_by, selected)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+              ).bind(
+                newListId,
+                String(item.name).trim(),
+                item.quantity == null ? '' : String(item.quantity),
+                item.unit || '',
+                item.category || '',
+                item.notes || '',
+                item.checked ? 1 : 0,
+                item.checked_by || '',
+                item.selected ? 1 : 0
+              ).run();
+              itemsImported++;
+            }
+          } catch (e) {
+            skipped++;
+          }
+        }
+
+        return json({
+          lists_imported: listsImported,
+          items_imported: itemsImported,
+          skipped,
+          total: lists.length
+        }, 200, cors);
       }
 
       return json({ error: 'Not found' }, 404, cors);
