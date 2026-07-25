@@ -18,7 +18,10 @@ Shopping list manager with two roles (maker/shopper), deployed as a Cloudflare W
 │   ├── wrangler.jsonc      # Worker config (update database_id after creation)
 │   ├── schema.sql          # D1 database schema
 │   ├── public/
-│   │   └── index.html      # Symlink → ../../index.html (DO NOT replace with a copy)
+│   │   ├── index.html      # Symlink → ../../index.html (DO NOT replace with a copy)
+│   │   ├── sw.js           # Service worker: offline app shell + cached list data
+│   │   ├── manifest.webmanifest
+│   │   └── icon.svg, icon-180/192/512.png
 │   └── src/
 │       └── worker.js       # Cloudflare Worker: all API routes
 ```
@@ -28,17 +31,27 @@ Shopping list manager with two roles (maker/shopper), deployed as a Cloudflare W
 ## Roles
 
 - **List Maker**: Full CRUD — create/edit/delete lists and items
-- **Shopper**: Check/uncheck items only, plus receipt scanning
+- **Shopper**: Check/uncheck items, search, add items, and receipt scanning. No editing, deleting, or template access.
 - Role is toggled client-side via the badge in the header or in settings
 
 ## Features
 
 - CRUD for shopping lists and items
-- Items grouped by category with progress tracking
-- Quick-add bar that filters visible items as you type, with deterministic parsing ("2kg chicken" → qty: 2, unit: kg, name: chicken), separate category control, and duplicate detection
+- Items grouped by category, ordered by supermarket walking order (`CATEGORY_ORDER` in `index.html`), not alphabetically. Uncategorised sorts last. Checked items sink to the bottom of their category.
+- Search/add bar that filters visible items as you type, with deterministic parsing ("2kg chicken" → qty: 2, unit: kg, name: chicken), separate category control, and duplicate detection
 - Receipt scanning via Claude Vision — photographs a store receipt, extracts items, fuzzy-matches against list, and checks off matched items
 - Reward-card photo shortcuts for Woolworths Everyday Rewards and Coles Flybuys
 - Auto-update system via version meta tag
+- Every view and overlay pushes a history entry, so hardware/browser Back steps through the app instead of leaving it
+
+## Offline behaviour
+
+The app is used inside supermarkets, so it has to survive bad signal:
+
+- `sw.js` caches the app shell (network-first, so the auto-update check still works) and successful `GET /api/*` responses, so the last-viewed list is readable with no connection.
+- Check/uncheck is optimistic. If the write fails at the network layer it goes into an outbox in `localStorage` (`shopping_list_outbox`) and replays on `online`, on tab focus, and after a settings save. A banner shows the pending count.
+- `syncList` skips polling while the outbox is non-empty, so queued local state is never overwritten by the server.
+- Polling pauses on `visibilitychange` and catches up when the tab is shown again.
 
 ## API Routes
 
@@ -69,6 +82,8 @@ Shopping list manager with two roles (maker/shopper), deployed as a Cloudflare W
 ## Version Bumping
 
 `index.html` has `<meta name="app-version" content="X.Y.Z">`. Bump this (semver) whenever changing `index.html`.
+
+Also bump `VERSION` in `worker/public/sw.js` when the cached shell changes — it names the caches, so a stale value leaves users on the old shell until they hit the reload button.
 
 ## Secrets Required
 

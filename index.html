@@ -2,12 +2,17 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Shopping">
 <meta name="theme-color" content="#141618">
-<meta name="app-version" content="2.11.0">
+<meta name="app-version" content="3.0.0">
 <title>Shopping List</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -20,7 +25,9 @@
   --surface-hover: rgba(255,255,255,0.08);
   --text: #f5f5f5;
   --text-mid: #8b8f96;
-  --text-dim: #6b7075;
+  /* --text-dim carries real content (quantities, counts, category chips), so it
+     has to clear 4.5:1 against --bg. #6b7075 only managed 3.6:1. */
+  --text-dim: #868b92;
   --accent: #4ade80;
   --accent-hover: #22c55e;
   --danger: #f87171;
@@ -49,6 +56,16 @@
   --cat-household: #7a7a7a;
   --cat-health: #7a6b8f;
   --cat-other: #6b6b6b;
+}
+
+/* Keyboard focus must stay visible everywhere — several inputs set outline:none
+   for their focus ring, which otherwise leaves keyboard users with nothing. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.item-check:focus-visible, .icon-btn:focus-visible, .role-badge:focus-visible {
+  outline-offset: 1px;
 }
 
 html, body {
@@ -81,9 +98,10 @@ html, body {
   display: flex; align-items: center; gap: 10px;
 }
 .header h1 {
-  font-size: 20px; font-weight: 700; flex: 1;
+  font-size: 20px; font-weight: 700; flex: 1; min-width: 0;
   letter-spacing: -0.03em;
   color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 
 /* Role badge */
@@ -163,7 +181,16 @@ html, body {
 .item-row.checked {
   padding-left: 18px;
 }
-.item-row.unselected { opacity: 0.35; }
+/* Template selection: an unselected item is the resting state, so it stays
+   fully legible. Selection is signalled by adding emphasis, not by dimming
+   everything else — a 30-item template read as entirely disabled before. */
+.item-row.selected-item {
+  background: var(--amber-dim);
+  box-shadow: inset 3px 0 0 var(--amber);
+  padding-left: 17px;
+}
+.item-row.selected-item:hover { background: rgba(212,160,84,0.16); }
+.item-row.selected-item .item-name { color: var(--text); font-weight: 600; }
 
 /* Checkbox — 26px for touch targets */
 .item-check {
@@ -192,15 +219,21 @@ html, body {
   transform: translateX(2px);
 }
 .item-detail { font-size: 12px; color: var(--text-mid); margin-top: 1px; }
+/* Notes were the brightest thing left in a completed row. */
+.item-row.checked .item-detail { color: var(--checked-text); opacity: 0.75; }
 
-/* Left-aligned quantity column */
+/* Left-aligned quantity column. A fixed 40px made "12 pack" wrap onto two
+   lines and blow up the row height; letting it grow instead left every item
+   name starting at a different x. So: a wider fixed column that fits the
+   common cases, and anything longer moves its unit down to the detail line
+   (see formatQty) rather than wrapping or truncating. */
 .item-qty-badge {
-  min-width: 40px; width: 40px; height: auto; border-radius: 0;
+  min-width: 58px; width: 58px; height: auto; border-radius: 0;
   background: transparent; color: var(--text-mid);
-  font-size: 13px; font-weight: 700; display: flex;
-  align-items: center; justify-content: flex-start; flex-shrink: 0;
+  font-size: 13px; font-weight: 700; display: block; flex-shrink: 0;
   padding: 0; font-variant-numeric: tabular-nums;
   font-family: 'Inter', monospace;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .item-qty-badge.multi { background: transparent; color: var(--text); }
 
@@ -222,6 +255,14 @@ html, body {
   letter-spacing: 0.02em;
 }
 .item-actions { display: flex; gap: 2px; }
+/* Swipe-to-delete is touch-only, so pointer devices get a delete button that
+   appears on row hover. */
+.item-action-btn.delete-item-btn { display: none; color: var(--danger); }
+@media (hover: hover) and (pointer: fine) {
+  .item-action-btn.delete-item-btn { display: flex; opacity: 0; }
+  .item-row:hover .item-action-btn.delete-item-btn,
+  .item-action-btn.delete-item-btn:focus-visible { opacity: 1; }
+}
 .item-action-btn {
   width: 28px; height: 28px; border-radius: var(--radius-xs); border: none;
   background: transparent; color: var(--text-dim); font-size: 15px;
@@ -265,9 +306,12 @@ html, body {
 
 /* Detail header */
 .detail-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; }
+/* Generated names ("Groceries — 2026-03-28") are long by design; without
+   min-width:0 + ellipsis they wrap and the sticky header eats the screen. */
 .detail-header h2 {
-  flex: 1; font-size: 20px; font-weight: 700;
+  flex: 1; min-width: 0; font-size: 20px; font-weight: 700;
   letter-spacing: -0.03em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
 .back-btn {
   background: none; border: none; color: var(--text-mid);
@@ -278,14 +322,25 @@ html, body {
 }
 .back-btn:hover { color: var(--text); }
 .back-btn:active { opacity: 0.6; transform: translateX(-2px); }
+.back-btn { flex-shrink: 0; }
+/* On a phone the arrow is enough — the word costs the title ~50px. */
+@media (max-width: 480px) {
+  .back-label { display: none; }
+  .back-btn { font-size: 18px; padding-right: 4px; }
+}
 
-/* Quick add bar */
+/* Quick add bar — one row. It used to wrap onto two lines on a phone, with the
+   Add button stranded on its own. The quantity is parsed out of the text
+   ("2kg chicken"), so there is no separate number field to fit in. */
 .quick-add {
-  display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap;
+  display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: nowrap;
+  align-items: center;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius); padding: 10px;
 }
+#quickAddInput { flex: 1 1 auto; min-width: 0; }
+#quickAddCategory { flex: 0 1 116px; min-width: 0; text-overflow: ellipsis; }
 .quick-add input, .quick-add select {
   padding: 8px 10px; border-radius: var(--radius-xs);
   border: 1px solid var(--border); background: rgba(255,255,255,0.03);
@@ -297,12 +352,13 @@ html, body {
 .add-item-btn {
   padding: 8px 18px; border-radius: var(--radius-xs); border: none;
   background: var(--accent); color: #141618; font-size: 13px;
-  font-weight: 700; cursor: pointer; white-space: nowrap;
+  font-weight: 700; cursor: pointer; white-space: nowrap; flex: 0 0 auto;
   transition: background var(--transition), box-shadow var(--transition);
   font-family: 'Inter', sans-serif;
 }
 .add-item-btn:hover { background: var(--accent-hover); box-shadow: 0 4px 16px rgba(74,222,128,0.2); }
 .add-item-btn:active { transform: scale(0.94); }
+.add-item-btn:disabled { opacity: 0.5; cursor: default; box-shadow: none; transform: none; }
 
 /* Summary bar */
 .summary-bar {
@@ -338,6 +394,9 @@ html, body {
 .create-shop-btn:hover { box-shadow: 0 6px 28px rgba(74,222,128,0.3); }
 .create-shop-btn:active { transform: scale(0.97); }
 .create-shop-btn:disabled { opacity: 0.3; cursor: default; transform: none; box-shadow: none; }
+/* The sticky button floats over the list; without this the last row sits
+   underneath it and can't be reached. */
+#listDetailView.has-sticky-btn { padding-bottom: 76px; }
 
 /* Empty state */
 .empty-state {
@@ -494,6 +553,28 @@ html, body {
   box-shadow: 0 8px 32px rgba(0,0,0,0.4);
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+/* A toast carrying an Undo has to be clickable, unlike the plain ones. */
+.toast.has-action { pointer-events: auto; display: flex; align-items: center; gap: 14px; }
+.toast-action {
+  background: none; border: none; color: var(--accent); font-size: 13px;
+  font-weight: 700; cursor: pointer; padding: 2px 4px; font-family: 'Inter', sans-serif;
+  text-transform: uppercase; letter-spacing: 0.04em; -webkit-tap-highlight-color: transparent;
+}
+.toast-action:active { opacity: 0.6; }
+
+/* Connectivity / pending-writes indicator */
+.net-banner {
+  display: none; position: fixed; bottom: 0; left: 0; right: 0;
+  background: rgba(212,160,84,0.14);
+  border-top: 1px solid rgba(212,160,84,0.25);
+  color: var(--amber); z-index: 250;
+  padding: 9px 16px; font-size: 12px; font-weight: 600; text-align: center;
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+.net-banner.active { display: block; }
+@supports (padding: env(safe-area-inset-bottom)) {
+  .net-banner { padding-bottom: calc(9px + env(safe-area-inset-bottom)); }
+}
 
 .loading {
   text-align: center; padding: 60px; color: var(--text-mid);
@@ -538,12 +619,12 @@ html, body {
     <div class="header">
       <div class="header-top">
         <h1>Shopping Lists</h1>
-        <button class="role-badge maker" id="roleBadge" title="Switch role"></button>
-        <button class="icon-btn" id="addListBtn" title="New list">+</button>
-        <button class="icon-btn" id="reloadBtn" title="Force reload">&#8635;</button>
-        <button class="icon-btn card-btn-woolworths" id="woolworthsCardBtn" title="Woolworths card" style="display:none">W</button>
-        <button class="icon-btn card-btn-coles" id="colesCardBtn" title="Coles card" style="display:none">C</button>
-        <button class="icon-btn" id="settingsBtn" title="Settings">&#9881;</button>
+        <button class="role-badge maker" id="roleBadge" title="Switch role" aria-label="Switch role"></button>
+        <button class="icon-btn" id="addListBtn" title="New list" aria-label="New list">+</button>
+        <button class="icon-btn" id="reloadBtn" title="Force reload" aria-label="Force reload">&#8635;</button>
+        <button class="icon-btn card-btn-woolworths" id="woolworthsCardBtn" title="Woolworths card" aria-label="Show Woolworths rewards card" style="display:none">W</button>
+        <button class="icon-btn card-btn-coles" id="colesCardBtn" title="Coles card" aria-label="Show Coles Flybuys card" style="display:none">C</button>
+        <button class="icon-btn" id="settingsBtn" title="Settings" aria-label="Settings">&#9881;</button>
       </div>
     </div>
     <ul id="listsList" style="list-style:none"></ul>
@@ -557,13 +638,13 @@ html, body {
   <div id="listDetailView" class="view">
     <div class="header">
       <div class="detail-header">
-        <button class="back-btn" id="backToListsBtn">&#8592; Back</button>
+        <button class="back-btn" id="backToListsBtn" aria-label="Back to lists">&#8592;<span class="back-label">Back</span></button>
         <h2 id="listTitle"></h2>
-        <button class="icon-btn" id="scanReceiptBtn" title="Scan receipt" style="display:none">&#128247;</button>
-        <button class="icon-btn card-btn-woolworths" id="woolworthsCardDetailBtn" title="Woolworths card" style="display:none">W</button>
-        <button class="icon-btn card-btn-coles" id="colesCardDetailBtn" title="Coles card" style="display:none">C</button>
-        <button class="icon-btn" id="dupListBtn" title="Duplicate list" style="display:none">&#10697;</button>
-        <button class="icon-btn" id="editListBtn" title="Edit list">&#9998;</button>
+        <button class="icon-btn" id="scanReceiptBtn" title="Scan receipt" aria-label="Scan receipt" style="display:none">&#128247;</button>
+        <button class="icon-btn card-btn-woolworths" id="woolworthsCardDetailBtn" title="Woolworths card" aria-label="Show Woolworths rewards card" style="display:none">W</button>
+        <button class="icon-btn card-btn-coles" id="colesCardDetailBtn" title="Coles card" aria-label="Show Coles Flybuys card" style="display:none">C</button>
+        <button class="icon-btn" id="dupListBtn" title="Duplicate list" aria-label="Duplicate list" style="display:none">&#10697;</button>
+        <button class="icon-btn" id="editListBtn" title="Edit list" aria-label="Edit list">&#9998;</button>
       </div>
     </div>
 
@@ -573,10 +654,9 @@ html, body {
     </div>
 
     <div class="quick-add" id="quickAddBar">
-      <input type="number" id="quickAddQty" placeholder="Qty" value="1" min="0" step="any" style="width:56px;flex:none;text-align:center">
-      <input type="text" id="quickAddInput" placeholder="Add item... e.g. 2kg chicken" autocomplete="off" style="flex:1;min-width:120px">
-      <select id="quickAddCategory" style="flex:none">
-        <option value="">No category</option>
+      <input type="text" id="quickAddInput" placeholder="Search or add, e.g. 2kg chicken" autocomplete="off" aria-label="Search or add an item">
+      <select id="quickAddCategory" aria-label="Category for new items">
+        <option value="">Category</option>
         <option value="Fruit & Veg">Fruit & Veg</option>
         <option value="Meat & Seafood">Meat & Seafood</option>
         <option value="Dairy & Eggs">Dairy & Eggs</option>
@@ -731,7 +811,7 @@ html, body {
   <div class="panel">
     <h2>Reward Cards</h2>
     <div id="rewardCardTabs" class="reward-card-tabs" style="display:none"></div>
-    <div id="rewardCardsDisplay" class="rewards-cards-display"></div>
+    <div id="rewardCardsDisplay" class="reward-cards-display"></div>
     <div class="panel-actions">
       <button class="btn-secondary" id="closeRewardCardsBtn">Close</button>
     </div>
@@ -744,8 +824,11 @@ html, body {
   <span class="scan-banner-text" id="scanBannerText">Scanning receipt...</span>
 </div>
 
+<!-- CONNECTIVITY / PENDING WRITES -->
+<div class="net-banner" id="netBanner" role="status"></div>
+
 <!-- TOAST -->
-<div class="toast" id="toast"></div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 <input type="file" class="file-input" id="receiptFileInput" accept="image/*" multiple>
 
 <script>
@@ -807,7 +890,6 @@ html, body {
     el.totalCount = document.getElementById('totalCount');
     el.progressFill = document.getElementById('progressFill');
     el.quickAddBar = document.getElementById('quickAddBar');
-    el.quickAddQty = document.getElementById('quickAddQty');
     el.quickAddInput = document.getElementById('quickAddInput');
     el.quickAddCategory = document.getElementById('quickAddCategory');
     el.quickAddBtn = document.getElementById('quickAddBtn');
@@ -848,6 +930,7 @@ html, body {
     el.scanBannerText = document.getElementById('scanBannerText');
     el.receiptFileInput = document.getElementById('receiptFileInput');
     el.toast = document.getElementById('toast');
+    el.netBanner = document.getElementById('netBanner');
 
     el.woolworthsCardBtn = document.getElementById('woolworthsCardBtn');
     el.colesCardBtn = document.getElementById('colesCardBtn');
@@ -873,12 +956,109 @@ html, body {
     v.classList.add('active');
   }
 
+  /* -- Navigation ------------------------------------------------------
+     Every view and overlay gets a history entry, so the Android back button
+     and the browser back arrow step back through the app instead of leaving
+     it. Screens are rendered by applyState(); history is pushed at the call
+     sites, never inside the render functions, so replaying a popstate can't
+     push a new entry. */
+  var currentState = { view: 'lists' };
+
+  function applyState(state) {
+    state = state || { view: 'lists' };
+    currentState = state;
+    closeOverlays();
+
+    switch (state.view) {
+      case 'detail':
+        openList(state.listId);
+        break;
+      case 'listForm':
+        openListForm(state.listId);
+        break;
+      case 'itemForm':
+        openItemForm(state.itemId);
+        break;
+      case 'scan':
+        showView(el.scanResultsView);
+        break;
+      case 'overlay':
+        // The view underneath stays as-is; just re-open the panel.
+        if (state.overlay === 'settings') openSettings();
+        else if (state.overlay === 'cards') openRewardCard(state.store);
+        break;
+      default:
+        stopSync();
+        showView(el.listsView);
+        fetchLists();
+    }
+  }
+
+  function navTo(state) {
+    try { history.pushState(state, ''); } catch (e) {}
+    applyState(state);
+  }
+
+  /* Use after a save or delete, so back doesn't return to a form that has
+     already been submitted. */
+  function navReplace(state) {
+    try { history.replaceState(state, ''); } catch (e) {}
+    applyState(state);
+  }
+
+  function navBack() {
+    history.back();
+  }
+
+  function closeOverlays() {
+    el.settingsOverlay.classList.remove('active');
+    el.rewardCardsOverlay.classList.remove('active');
+  }
+
+  /* Closing a panel via its own button should consume the history entry that
+     opened it, otherwise back would re-open it. */
+  function dismissOverlay() {
+    if (currentState.view === 'overlay') navBack();
+    else closeOverlays();
+  }
+
   var toastTimer = null;
-  function toast(msg) {
-    el.toast.textContent = msg;
+  function hideToast() {
+    el.toast.classList.remove('show');
+    el.toast.classList.remove('has-action');
+  }
+
+  /* toast('Saved') or toast('Item deleted', 'Undo', fn) for a reversible action. */
+  function toast(msg, actionLabel, onAction) {
+    el.toast.innerHTML = '';
+    el.toast.appendChild(document.createTextNode(msg));
+    if (actionLabel && onAction) {
+      var btn = document.createElement('button');
+      btn.className = 'toast-action';
+      btn.textContent = actionLabel;
+      btn.addEventListener('click', function() {
+        hideToast();
+        if (toastTimer) clearTimeout(toastTimer);
+        onAction();
+      });
+      el.toast.appendChild(btn);
+      el.toast.classList.add('has-action');
+    } else {
+      el.toast.classList.remove('has-action');
+    }
     el.toast.classList.add('show');
     if (toastTimer) clearTimeout(toastTimer);
-    toastTimer = setTimeout(function() { el.toast.classList.remove('show'); }, 3000);
+    toastTimer = setTimeout(hideToast, actionLabel ? 6000 : 3000);
+  }
+
+  var REQUEST_TIMEOUT = 12000;
+
+  /* err is a string for display; err.offline marks "couldn't reach the server",
+     which is what the outbox retries rather than surfacing as a failure. */
+  function netError(msg) {
+    var e = new String(msg);
+    e.offline = true;
+    return e;
   }
 
   function api(method, path, body, cb) {
@@ -887,15 +1067,119 @@ html, body {
     xhr.open(method, config.workerUrl + path);
     xhr.setRequestHeader('Content-Type', 'application/json');
     if (config.token) xhr.setRequestHeader('X-Dashboard-Token', config.token);
+    // Without a timeout a request on flaky supermarket wifi hangs forever and
+    // the UI waits on a callback that never fires.
+    xhr.timeout = REQUEST_TIMEOUT;
     xhr.onload = function() {
+      if (xhr.status === 401 || xhr.status === 403) {
+        cb('Unauthorized');
+        promptForAuth();
+        return;
+      }
       try {
         var data = JSON.parse(xhr.responseText);
         if (xhr.status >= 200 && xhr.status < 300) cb(null, data);
         else cb(data.error || 'Request failed');
       } catch (e) { cb('Invalid response'); }
     };
-    xhr.onerror = function() { cb('Network error'); };
+    xhr.onerror = function() { cb(netError('Network error')); };
+    xhr.ontimeout = function() { cb(netError('Request timed out')); };
     xhr.send(body ? JSON.stringify(body) : null);
+  }
+
+  var authPromptShown = false;
+  function promptForAuth() {
+    if (authPromptShown) return;
+    authPromptShown = true;
+    toast('Check your token in settings');
+    navTo({ view: 'overlay', overlay: 'settings' });
+    setTimeout(function() { authPromptShown = false; }, 5000);
+  }
+
+  /* -- Offline outbox --------------------------------------------------
+     Check/uncheck is the one action people do while walking around a store
+     with no signal. Failed toggles are parked here and replayed when the
+     network comes back, so a tap is never silently lost. */
+  var OUTBOX_KEY = 'shopping_list_outbox';
+  var outbox = [];
+  var flushing = false;
+
+  function loadOutbox() {
+    try { outbox = JSON.parse(localStorage.getItem(OUTBOX_KEY) || '[]'); }
+    catch (e) { outbox = []; }
+  }
+
+  function saveOutbox() {
+    try { localStorage.setItem(OUTBOX_KEY, JSON.stringify(outbox)); } catch (e) {}
+    updateNetBanner();
+  }
+
+  function queueWrite(listId, itemId, body) {
+    // One pending write per item — the latest state wins.
+    for (var i = 0; i < outbox.length; i++) {
+      if (outbox[i].listId === listId && outbox[i].itemId === itemId) {
+        outbox[i].body = body;
+        saveOutbox();
+        return;
+      }
+    }
+    outbox.push({ listId: listId, itemId: itemId, body: body });
+    saveOutbox();
+  }
+
+  function flushOutbox(done) {
+    if (flushing || !outbox.length || !config.workerUrl) { if (done) done(); return; }
+    flushing = true;
+    var queue = outbox.slice();
+    var idx = 0;
+
+    function next() {
+      if (idx >= queue.length) {
+        flushing = false;
+        updateNetBanner();
+        if (done) done();
+        return;
+      }
+      var entry = queue[idx++];
+      api('PUT', '/api/lists/' + entry.listId + '/items/' + entry.itemId, entry.body, function(err) {
+        if (err && err.offline) {
+          // Still no connection — stop and keep the rest queued.
+          flushing = false;
+          updateNetBanner();
+          if (done) done();
+          return;
+        }
+        // Success, or a permanent error (item deleted server-side): drop it.
+        for (var i = 0; i < outbox.length; i++) {
+          if (outbox[i].listId === entry.listId && outbox[i].itemId === entry.itemId) {
+            outbox.splice(i, 1);
+            break;
+          }
+        }
+        saveOutbox();
+        next();
+      });
+    }
+    next();
+  }
+
+  function updateNetBanner() {
+    var pending = outbox.length;
+    var offline = (typeof navigator.onLine === 'boolean') && !navigator.onLine;
+    if (!pending && !offline) {
+      el.netBanner.classList.remove('active');
+      return;
+    }
+    var msg;
+    if (pending) {
+      var count = pending + (pending === 1 ? ' change' : ' changes');
+      if (flushing) msg = count + ' syncing…';
+      else msg = count + ' saved — will sync when you’re back online';
+    } else {
+      msg = 'Offline — changes will sync when you’re back online';
+    }
+    el.netBanner.textContent = msg;
+    el.netBanner.classList.add('active');
   }
 
   function isMaker() { return config.role === 'maker'; }
@@ -913,11 +1197,18 @@ html, body {
 
   function updateDetailUI() {
     var tpl = isTemplate();
-    el.quickAddBar.style.display = isMaker() ? '' : 'none';
+    // Shoppers get the bar too: it is the only way to find something in a long
+    // list, and "we're out of milk" needs somewhere to go mid-shop.
+    el.quickAddBar.style.display = '';
+    el.quickAddInput.placeholder = isMaker()
+      ? 'Search or add, e.g. 2kg chicken'
+      : 'Search or add an item';
     el.dupListBtn.style.display = isMaker() ? '' : 'none';
     el.editListBtn.style.display = isMaker() ? '' : 'none';
     el.scanReceiptBtn.style.display = (!tpl) ? '' : 'none';
-    el.createShopBtn.style.display = (isMaker() && tpl) ? '' : 'none';
+    var showCreate = isMaker() && tpl;
+    el.createShopBtn.style.display = showCreate ? '' : 'none';
+    el.listDetailView.classList.toggle('has-sticky-btn', showCreate);
     el.summaryBar.style.display = '';
   }
 
@@ -981,7 +1272,7 @@ html, body {
         badgeHtml + '<span class="list-meta">&#9656;</span>';
 
       (function(id) {
-        row.addEventListener('click', function() { openList(id); });
+        row.addEventListener('click', function() { navTo({ view: 'detail', listId: id }); });
       })(li.id);
 
       if (isMaker()) {
@@ -1009,7 +1300,7 @@ html, body {
     el.itemsEmpty.style.display = 'none';
 
     api('GET', '/api/lists/' + id, null, function(err, data) {
-      if (err) { toast('Error: ' + err); showView(el.listsView); return; }
+      if (err) { toast('Error: ' + err); navReplace({ view: 'lists' }); return; }
       currentList = data.list;
       currentItems = data.items || [];
       el.listTitle.textContent = currentList.name;
@@ -1042,6 +1333,8 @@ html, body {
 
     el.itemsEmpty.style.display = 'none';
 
+    visibleItems = sortItemsForRender(visibleItems);
+
     // Group by category
     var categories = {};
     var uncategorised = [];
@@ -1059,14 +1352,60 @@ html, body {
     for (var k in categories) {
       if (categories.hasOwnProperty(k)) catKeys.push(k);
     }
-    catKeys.sort();
+    catKeys.sort(compareCategories);
 
-    if (uncategorised.length > 0) renderItemGroup('', uncategorised);
     for (var c = 0; c < catKeys.length; c++) {
       renderItemGroup(catKeys[c], categories[catKeys[c]]);
     }
+    // Uncategorised last: it used to render first as an unlabelled orphan block.
+    if (uncategorised.length > 0) renderItemGroup('', uncategorised);
 
     updateSummary();
+  }
+
+  /* Category groups follow the walk through a supermarket rather than the
+     alphabet, so working down the list is one lap of the store. */
+  var CATEGORY_ORDER = [
+    'Fruit & Veg', 'Bakery', 'Meat & Seafood', 'Dairy & Eggs', 'Frozen',
+    'Pantry', 'Snacks', 'Drinks', 'Health & Beauty', 'Household', 'Other'
+  ];
+
+  function compareCategories(a, b) {
+    var ia = CATEGORY_ORDER.indexOf(a);
+    var ib = CATEGORY_ORDER.indexOf(b);
+    // Anything unrecognised sorts after the known aisles, alphabetically.
+    if (ia === -1 && ib === -1) return a < b ? -1 : (a > b ? 1 : 0);
+    if (ia === -1) return 1;
+    if (ib === -1) return -1;
+    return ia - ib;
+  }
+
+  /* The quantity column is fixed-width so item names line up. "12 pack" fits;
+     "1.5 litres" doesn't, and rather than wrap or truncate it, the unit drops
+     to the detail line under the name. */
+  var QTY_LABEL_MAX = 8;
+
+  function formatQty(item) {
+    var qty = item.quantity || '1';
+    var unit = item.unit || '';
+    if (!unit) return { label: qty, overflowUnit: '' };
+    var combined = qty + ' ' + unit;
+    if (combined.length <= QTY_LABEL_MAX) return { label: combined, overflowUnit: '' };
+    return { label: qty, overflowUnit: unit };
+  }
+
+  /* Mirrors the server's ORDER BY so a live toggle and a reload agree; checked
+     items previously stayed put until the next fetch quietly reshuffled them. */
+  function sortItemsForRender(items) {
+    var tpl = isTemplate();
+    return items.slice().sort(function(a, b) {
+      if (!tpl) {
+        var ca = a.checked ? 1 : 0, cb = b.checked ? 1 : 0;
+        if (ca !== cb) return ca - cb;
+      }
+      var na = (a.name || '').toLowerCase(), nb = (b.name || '').toLowerCase();
+      return na < nb ? -1 : (na > nb ? 1 : 0);
+    });
   }
 
   function startSync() {
@@ -1083,6 +1422,8 @@ html, body {
     if (editingItemId) return;
     // Check swipeState if it exists (set up later in init)
     if (typeof swipeState !== 'undefined' && (swipeState.swiping || swipeState.row)) return;
+    // Don't overwrite optimistic state that hasn't reached the server yet.
+    if (outbox.length || flushing) return;
 
     api('GET', '/api/lists/' + currentListId, null, function(err, data) {
       if (err) return; // silent fail on sync
@@ -1125,22 +1466,7 @@ html, body {
           cur.checked = newItems[k].checked;
           cur.checked_by = newItems[k].checked_by;
           changed = true;
-
-          // Update DOM in-place
-          var row = el.itemsContainer.querySelector('.item-row[data-id="' + cur.id + '"]');
-          if (row) {
-            var btn = row.querySelector('.item-check');
-            var nameEl = row.querySelector('.item-name');
-            if (cur.checked) {
-              row.classList.add('checked');
-              if (btn) btn.classList.add('checked');
-              if (nameEl) nameEl.classList.add('checked');
-            } else {
-              row.classList.remove('checked');
-              if (btn) btn.classList.remove('checked');
-              if (nameEl) nameEl.classList.remove('checked');
-            }
-          }
+          paintItemRow(cur);
         }
       }
 
@@ -1153,12 +1479,10 @@ html, body {
     group.className = 'category-group';
     group.setAttribute('data-category', category);
 
-    if (category) {
-      var label = document.createElement('div');
-      label.className = 'category-label';
-      label.textContent = category;
-      group.appendChild(label);
-    }
+    var label = document.createElement('div');
+    label.className = 'category-label';
+    label.textContent = category || 'Uncategorised';
+    group.appendChild(label);
 
     var tpl = isTemplate();
 
@@ -1167,20 +1491,23 @@ html, body {
       var row = document.createElement('div');
       row.setAttribute('data-id', item.id);
 
+      var actionsHtml = '';
+      if (isMaker()) {
+        actionsHtml = '<div class="item-actions">' +
+          '<button class="item-action-btn edit-item-btn" data-id="' + item.id + '" title="Edit" aria-label="Edit ' + escHtml(item.name) + '">&#9998;</button>' +
+          '<button class="item-action-btn delete-item-btn" data-id="' + item.id + '" title="Delete" aria-label="Delete ' + escHtml(item.name) + '">&#10005;</button>' +
+          '</div>';
+      }
+
       if (tpl) {
         var sel = item.selected ? true : false;
-        row.className = 'item-row' + (sel ? '' : ' unselected');
-
-        var actionsHtml = '';
-        if (isMaker()) {
-          actionsHtml = '<div class="item-actions">' +
-            '<button class="item-action-btn edit-item-btn" data-id="' + item.id + '" title="Edit">&#9998;</button>' +
-            '</div>';
-        }
+        row.className = 'item-row' + (sel ? ' selected-item' : '');
 
         row.innerHTML =
-          '<button class="item-check' + (sel ? ' selected' : '') + '" data-id="' + item.id + '">&#10003;</button>' +
-          '<input type="number" class="item-qty-inline" data-id="' + item.id + '" value="' + escHtml(item.quantity || '1') + '" min="0" step="any"' + (isMaker() ? '' : ' disabled') + '>' +
+          '<button class="item-check' + (sel ? ' selected' : '') + '" data-id="' + item.id + '"' +
+            ' role="checkbox" aria-checked="' + (sel ? 'true' : 'false') + '"' +
+            ' aria-label="Select ' + escHtml(item.name) + '">&#10003;</button>' +
+          '<input type="number" class="item-qty-inline" data-id="' + item.id + '" value="' + escHtml(item.quantity || '1') + '" min="0" step="any" aria-label="Quantity for ' + escHtml(item.name) + '"' + (isMaker() ? '' : ' disabled') + '>' +
           '<div class="item-info">' +
             '<div class="item-name">' + escHtml(item.name) + '</div>' +
             (item.notes ? '<div class="item-detail">' + escHtml(item.notes) + '</div>' : '') +
@@ -1190,25 +1517,21 @@ html, body {
         var checked = item.checked ? true : false;
         row.className = 'item-row' + (checked ? ' checked' : '');
 
-        var qty = item.quantity || '1';
-        var isMulti = parseInt(qty) > 1;
-        var qtyLabel = qty + (item.unit ? ' ' + item.unit : '');
-
-        var actionsHtml2 = '';
-        if (isMaker()) {
-          actionsHtml2 = '<div class="item-actions">' +
-            '<button class="item-action-btn edit-item-btn" data-id="' + item.id + '" title="Edit">&#9998;</button>' +
-            '</div>';
-        }
+        var fmt = formatQty(item);
+        var isMulti = parseFloat(item.quantity || '1') > 1;
+        var qtyLabel = fmt.label;
+        var detail = [fmt.overflowUnit, item.notes].filter(Boolean).join(' · ');
 
         row.innerHTML =
-          '<button class="item-check' + (checked ? ' checked' : '') + '" data-id="' + item.id + '">&#10003;</button>' +
+          '<button class="item-check' + (checked ? ' checked' : '') + '" data-id="' + item.id + '"' +
+            ' role="checkbox" aria-checked="' + (checked ? 'true' : 'false') + '"' +
+            ' aria-label="' + escHtml(item.name) + '">&#10003;</button>' +
           '<span class="item-qty-badge' + (isMulti ? ' multi' : '') + '">' + escHtml(qtyLabel) + '</span>' +
           '<div class="item-info">' +
             '<div class="item-name' + (checked ? ' checked' : '') + '">' + escHtml(item.name) + '</div>' +
-            (item.notes ? '<div class="item-detail">' + escHtml(item.notes) + '</div>' : '') +
+            (detail ? '<div class="item-detail">' + escHtml(detail) + '</div>' : '') +
           '</div>' +
-          actionsHtml2;
+          actionsHtml;
       }
 
       if (isMaker()) {
@@ -1251,20 +1574,59 @@ html, body {
     }
   }
 
+  function findItem(itemId) {
+    for (var i = 0; i < currentItems.length; i++) {
+      if (currentItems[i].id === itemId) return currentItems[i];
+    }
+    return null;
+  }
+
+  /* Repaint one row without rebuilding the list, so an optimistic toggle
+     doesn't cost a full re-render (and doesn't move the row out from under
+     the finger mid-tap). */
+  function paintItemRow(item) {
+    var row = el.itemsContainer.querySelector('.item-row[data-id="' + item.id + '"]');
+    if (!row) return;
+    var btn = row.querySelector('.item-check');
+    var nameEl = row.querySelector('.item-name');
+    var on = isTemplate() ? !!item.selected : !!item.checked;
+    var stateClass = isTemplate() ? 'selected' : 'checked';
+
+    if (btn) {
+      btn.classList.toggle(stateClass, on);
+      btn.setAttribute('aria-checked', on ? 'true' : 'false');
+    }
+    if (isTemplate()) {
+      row.classList.toggle('selected-item', on);
+    } else {
+      row.classList.toggle('checked', on);
+      if (nameEl) nameEl.classList.toggle('checked', on);
+    }
+  }
+
   /* -- Toggle Select (template) -- */
   function toggleSelect(itemId) {
-    var item = null;
-    for (var i = 0; i < currentItems.length; i++) {
-      if (currentItems[i].id === itemId) { item = currentItems[i]; break; }
-    }
+    var item = findItem(itemId);
     if (!item) return;
+    var prev = item.selected;
     var newSel = item.selected ? 0 : 1;
+
+    item.selected = newSel;
+    paintItemRow(item);
+    updateSummary();
+
     api('PUT', '/api/lists/' + currentListId + '/items/' + itemId, {
       selected: newSel
     }, function(err) {
-      if (err) { toast('Error: ' + err); return; }
-      item.selected = newSel;
-      renderItems();
+      if (!err) return;
+      if (err.offline) {
+        queueWrite(currentListId, itemId, { selected: newSel });
+        return;
+      }
+      item.selected = prev;
+      paintItemRow(item);
+      updateSummary();
+      toast('Error: ' + err);
     });
   }
 
@@ -1280,20 +1642,45 @@ html, body {
     });
   }
 
-  /* -- Toggle Check (shop list) -- */
-  function toggleCheck(itemId) {
-    var item = null;
-    for (var i = 0; i < currentItems.length; i++) {
-      if (currentItems[i].id === itemId) { item = currentItems[i]; break; }
-    }
-    if (!item) return;
-    var newChecked = item.checked ? 0 : 1;
-    api('PUT', '/api/lists/' + currentListId + '/items/' + itemId, {
-      checked: newChecked, checked_by: config.role
-    }, function(err) {
-      if (err) { toast('Error: ' + err); return; }
-      item.checked = newChecked;
+  /* Checked items belong at the bottom of their aisle, but reordering the
+     instant a box is ticked yanks the next row up under the finger. Let the
+     tick land, then reflow once tapping stops. */
+  var reflowTimer = null;
+  function scheduleReflow() {
+    if (reflowTimer) clearTimeout(reflowTimer);
+    reflowTimer = setTimeout(function() {
+      reflowTimer = null;
+      if (document.querySelector('.item-wrap.swiped')) return;
       renderItems();
+    }, 600);
+  }
+
+  /* -- Toggle Check (shop list) --
+     Paint first, reconcile after. Standing in an aisle on one bar of signal,
+     waiting for a round trip before the tick appears feels broken. */
+  function toggleCheck(itemId) {
+    var item = findItem(itemId);
+    if (!item) return;
+    var prev = item.checked;
+    var newChecked = item.checked ? 0 : 1;
+    var body = { checked: newChecked, checked_by: config.role };
+
+    item.checked = newChecked;
+    paintItemRow(item);
+    updateSummary();
+    scheduleReflow();
+
+    api('PUT', '/api/lists/' + currentListId + '/items/' + itemId, body, function(err) {
+      if (!err) return;
+      if (err.offline) {
+        // Keep the tick and replay the write once we're back online.
+        queueWrite(currentListId, itemId, body);
+        return;
+      }
+      item.checked = prev;
+      paintItemRow(item);
+      updateSummary();
+      toast('Error: ' + err);
     });
   }
 
@@ -1302,7 +1689,7 @@ html, body {
     api('POST', '/api/lists/' + currentListId + '/create-shop', {}, function(err, data) {
       if (err) { toast('Error: ' + err); return; }
       toast('Shopping list created: ' + data.name);
-      openList(data.id);
+      navTo({ view: 'detail', listId: data.id });
     });
   }
 
@@ -1310,18 +1697,36 @@ html, body {
     api('POST', '/api/lists/' + currentListId + '/duplicate', {}, function(err, data) {
       if (err) { toast('Error: ' + err); return; }
       toast('List duplicated: ' + data.name);
-      openList(data.id);
+      navTo({ view: 'detail', listId: data.id });
     });
   }
 
   /* -- Quick Add -- */
+  var quickAddBusy = false;
+  function setQuickAddBusy(busy) {
+    quickAddBusy = busy;
+    el.quickAddBtn.disabled = busy;
+  }
+
+  function finishQuickAdd() {
+    setQuickAddBusy(false);
+    el.quickAddInput.value = '';
+    itemFilterText = '';
+    renderItems();
+    el.quickAddInput.focus();
+  }
+
   function quickAddItem() {
-    var parsed = parseQuickAddText(el.quickAddInput.value, el.quickAddQty.value || '1');
+    // Guards a double-tap: the duplicate check below reads currentItems, which
+    // hasn't caught up while the first POST is still in flight.
+    if (quickAddBusy) return;
+    var parsed = parseQuickAddText(el.quickAddInput.value, '1');
     var name = parsed.name.trim();
     if (!name) return;
     var qty = parsed.quantity || '1';
     var unit = parsed.unit || '';
     var cat = el.quickAddCategory.value || '';
+    setQuickAddBusy(true);
 
     // If item already exists, select it with the given qty instead of duplicating
     for (var d = 0; d < currentItems.length; d++) {
@@ -1341,16 +1746,13 @@ html, body {
         if (templateList && cat) update.category = cat;
 
         api('PUT', '/api/lists/' + currentListId + '/items/' + existing.id, update, function(err) {
-          if (err) { toast('Error: ' + err); return; }
+          if (err) { setQuickAddBusy(false); toast('Error: ' + err); return; }
           if (templateList) existing.selected = 1;
           existing.quantity = qty;
           if (unit) existing.unit = unit;
           if (cat) existing.category = cat;
-          el.quickAddInput.value = '';
-          itemFilterText = '';
-          el.quickAddQty.value = '1';
-          renderItems();
-          el.quickAddInput.focus();
+          toast('Updated ' + existing.name);
+          finishQuickAdd();
         });
         return;
       }
@@ -1358,13 +1760,9 @@ html, body {
     var item = { name: name, quantity: qty, unit: unit, category: cat, notes: '' };
 
     api('POST', '/api/lists/' + currentListId + '/items', item, function(err, data) {
-      if (err) { toast('Error: ' + err); return; }
-      el.quickAddInput.value = '';
-      itemFilterText = '';
-      el.quickAddQty.value = '1';
+      if (err) { setQuickAddBusy(false); toast('Error: ' + err); return; }
       currentItems.push(data);
-      renderItems();
-      el.quickAddInput.focus();
+      finishQuickAdd();
     });
   }
 
@@ -1395,14 +1793,14 @@ html, body {
         if (err) { toast('Error: ' + err); return; }
         toast('List updated');
         currentList.name = name;
-        openList(editingListId);
+        navReplace({ view: 'detail', listId: editingListId });
       });
     } else {
       var body = { name: name, is_template: el.listTemplateCheck.checked };
       api('POST', '/api/lists', body, function(err, data) {
         if (err) { toast('Error: ' + err); return; }
         toast('List created');
-        openList(data.id);
+        navReplace({ view: 'detail', listId: data.id });
       });
     }
   }
@@ -1413,8 +1811,8 @@ html, body {
     api('DELETE', '/api/lists/' + editingListId, null, function(err) {
       if (err) { toast('Error: ' + err); return; }
       toast('List deleted');
-      showView(el.listsView);
-      fetchLists();
+      currentListId = null;
+      navReplace({ view: 'lists' });
     });
   }
 
@@ -1461,13 +1859,13 @@ html, body {
       api('PUT', '/api/lists/' + currentListId + '/items/' + editingItemId, body, function(err) {
         if (err) { toast('Error: ' + err); return; }
         toast('Item updated');
-        openList(currentListId);
+        navReplace({ view: 'detail', listId: currentListId });
       });
     } else {
       api('POST', '/api/lists/' + currentListId + '/items', body, function(err) {
         if (err) { toast('Error: ' + err); return; }
         toast('Item added');
-        openList(currentListId);
+        navReplace({ view: 'detail', listId: currentListId });
       });
     }
   }
@@ -1478,7 +1876,7 @@ html, body {
     api('DELETE', '/api/lists/' + currentListId + '/items/' + editingItemId, null, function(err) {
       if (err) { toast('Error: ' + err); return; }
       toast('Item deleted');
-      openList(currentListId);
+      navReplace({ view: 'detail', listId: currentListId });
     });
   }
 
@@ -1534,7 +1932,7 @@ html, body {
     if (!scanMatches.length && !unmatched.length) html = '<div class="empty-state">No items found on receipt.</div>';
     el.scanResultsContent.innerHTML = html;
     el.applyScanBtn.style.display = scanMatches.length > 0 ? '' : 'none';
-    showView(el.scanResultsView);
+    navTo({ view: 'scan' });
   }
 
   function applyScanMatches() {
@@ -1550,7 +1948,7 @@ html, body {
           remaining--;
           if (remaining === 0) {
             toast((scanMatches.length - errors) + ' items checked off');
-            openList(currentListId);
+            navReplace({ view: 'detail', listId: currentListId });
           }
         });
       })(scanMatches[i]);
@@ -1581,7 +1979,6 @@ html, body {
     el.colesCardBtn.style.display = hasC ? '' : 'none';
     el.woolworthsCardDetailBtn.style.display = hasW ? '' : 'none';
     el.colesCardDetailBtn.style.display = hasC ? '' : 'none';
-    var cCard = getCard('coles');
     if (wCard && wCard.image_data) {
       el.woolworthsThumb.outerHTML = '<img class="reward-card-thumb" id="woolworthsThumb" src="data:' + escHtml(wCard.media_type) + ';base64,' + wCard.image_data + '">';
       el.woolworthsThumb = document.getElementById('woolworthsThumb');
@@ -1659,7 +2056,7 @@ html, body {
       '</div>';
   }
 
-  function closeRewardCards() { el.rewardCardsOverlay.classList.remove('active'); }
+  function closeRewardCards() { dismissOverlay(); }
 
   /* -- Settings -- */
   function openSettings() {
@@ -1675,13 +2072,14 @@ html, body {
     config.token = el.tokenInput.value.trim();
     config.role = el.roleSelect.value;
     saveConfig();
-    el.settingsOverlay.classList.remove('active');
     updateRoleUI();
     toast('Settings saved');
-    fetchLists();
+    dismissOverlay(); // popping back re-renders (and refetches) the view below
+    fetchRewardCards();
+    flushOutbox();
   }
 
-  function closeSettings() { el.settingsOverlay.classList.remove('active'); }
+  function closeSettings() { dismissOverlay(); }
 
   function escHtml(str) {
     if (!str) return '';
@@ -1710,7 +2108,7 @@ html, body {
   }
 
   function updateItemFilterFromQuickAdd() {
-    var parsed = parseQuickAddText(el.quickAddInput.value, el.quickAddQty.value || '1');
+    var parsed = parseQuickAddText(el.quickAddInput.value, '1');
     itemFilterText = parsed.name.trim();
     renderItems();
   }
@@ -1781,30 +2179,42 @@ html, body {
       config.role = isMaker() ? 'shopper' : 'maker';
       saveConfig();
       updateRoleUI();
-      showView(el.listsView);
-      fetchLists();
+      navReplace({ view: 'lists' });
       toast('Switched to ' + config.role + ' mode');
     });
 
-    el.addListBtn.addEventListener('click', function() { openListForm(null); });
+    el.addListBtn.addEventListener('click', function() { navTo({ view: 'listForm', listId: null }); });
     el.reloadBtn.addEventListener('click', function() {
-      if ('caches' in window) {
-        caches.keys().then(function(names) {
-          names.forEach(function(n) { caches.delete(n); });
-        }).then(function() { window.location.href = window.location.pathname + '?_=' + Date.now(); });
-      } else {
+      function hardReload() {
         window.location.href = window.location.pathname + '?_=' + Date.now();
       }
+      var jobs = [];
+      if ('caches' in window) {
+        jobs.push(caches.keys().then(function(names) {
+          return Promise.all(names.map(function(n) { return caches.delete(n); }));
+        }));
+      }
+      // The service worker would otherwise serve the shell it already has.
+      if ('serviceWorker' in navigator) {
+        jobs.push(navigator.serviceWorker.getRegistrations().then(function(regs) {
+          return Promise.all(regs.map(function(r) { return r.unregister(); }));
+        }).catch(function() {}));
+      }
+      if (!jobs.length) { hardReload(); return; }
+      Promise.all(jobs).then(hardReload, hardReload);
     });
-    el.settingsBtn.addEventListener('click', openSettings);
+    el.settingsBtn.addEventListener('click', function() { navTo({ view: 'overlay', overlay: 'settings' }); });
     el.saveSettingsBtn.addEventListener('click', saveSettings);
     el.closeSettingsBtn.addEventListener('click', closeSettings);
     el.settingsOverlay.addEventListener('click', function(e) { if (e.target === el.settingsOverlay) closeSettings(); });
 
-    el.woolworthsCardBtn.addEventListener('click', function() { openRewardCard('woolworths'); });
-    el.colesCardBtn.addEventListener('click', function() { openRewardCard('coles'); });
-    el.woolworthsCardDetailBtn.addEventListener('click', function() { openRewardCard('woolworths'); });
-    el.colesCardDetailBtn.addEventListener('click', function() { openRewardCard('coles'); });
+    function showCard(store) {
+      return function() { navTo({ view: 'overlay', overlay: 'cards', store: store }); };
+    }
+    el.woolworthsCardBtn.addEventListener('click', showCard('woolworths'));
+    el.colesCardBtn.addEventListener('click', showCard('coles'));
+    el.woolworthsCardDetailBtn.addEventListener('click', showCard('woolworths'));
+    el.colesCardDetailBtn.addEventListener('click', showCard('coles'));
     el.closeRewardCardsBtn.addEventListener('click', closeRewardCards);
     el.rewardCardsOverlay.addEventListener('click', function(e) { if (e.target === el.rewardCardsOverlay) closeRewardCards(); });
     el.woolworthsUploadBtn.addEventListener('click', function() { el.woolworthsFileInput.click(); });
@@ -1820,9 +2230,9 @@ html, body {
     el.woolworthsRemoveBtn.addEventListener('click', function() { deleteRewardCard('woolworths'); });
     el.colesRemoveBtn.addEventListener('click', function() { deleteRewardCard('coles'); });
 
-    el.backToListsBtn.addEventListener('click', function() { stopSync(); showView(el.listsView); fetchLists(); });
+    el.backToListsBtn.addEventListener('click', navBack);
     el.dupListBtn.addEventListener('click', duplicateList);
-    el.editListBtn.addEventListener('click', function() { openListForm(currentListId); });
+    el.editListBtn.addEventListener('click', function() { navTo({ view: 'listForm', listId: currentListId }); });
     el.scanReceiptBtn.addEventListener('click', startScan);
     el.receiptFileInput.addEventListener('change', function() { handleReceiptFiles(this.files); this.value = ''; });
 
@@ -1834,18 +2244,15 @@ html, body {
 
     el.createShopBtn.addEventListener('click', createShopList);
 
-    el.cancelListFormBtn.addEventListener('click', function() {
-      if (currentListId) openList(currentListId);
-      else { showView(el.listsView); fetchLists(); }
-    });
+    el.cancelListFormBtn.addEventListener('click', navBack);
     el.saveListBtn.addEventListener('click', saveList);
     el.deleteListBtn.addEventListener('click', deleteList);
 
-    el.cancelItemFormBtn.addEventListener('click', function() { openList(currentListId); });
+    el.cancelItemFormBtn.addEventListener('click', navBack);
     el.saveItemBtn.addEventListener('click', saveItem);
     el.deleteItemBtn.addEventListener('click', deleteItem);
 
-    el.closeScanResultsBtn.addEventListener('click', function() { openList(currentListId); });
+    el.closeScanResultsBtn.addEventListener('click', navBack);
     el.applyScanBtn.addEventListener('click', applyScanMatches);
 
     // Event delegation for items
@@ -1859,7 +2266,12 @@ html, body {
       }
       var editBtn = e.target.closest('.edit-item-btn');
       if (editBtn) {
-        openItemForm(parseInt(editBtn.getAttribute('data-id')));
+        navTo({ view: 'itemForm', itemId: parseInt(editBtn.getAttribute('data-id')) });
+        return;
+      }
+      var delBtn = e.target.closest('.delete-item-btn');
+      if (delBtn) {
+        deleteItemById(parseInt(delBtn.getAttribute('data-id')));
         return;
       }
     });
@@ -1941,6 +2353,40 @@ html, body {
       swipeDeleteList(listId, wrap);
     });
 
+    window.addEventListener('popstate', function(e) {
+      applyState(e.state);
+    });
+
+    // Escape closes a panel, matching the tap-outside behaviour.
+    document.addEventListener('keydown', function(e) {
+      if (e.key !== 'Escape' && e.keyCode !== 27) return;
+      if (el.settingsOverlay.classList.contains('active') ||
+          el.rewardCardsOverlay.classList.contains('active')) {
+        dismissOverlay();
+      }
+    });
+
+    /* Polling ran every 5s forever, including while the phone was in a pocket.
+       Pause when hidden, and catch up (plus flush queued writes) on return. */
+    document.addEventListener('visibilitychange', function() {
+      if (document.hidden) {
+        stopSync();
+      } else {
+        flushOutbox(function() {
+          if (currentListId && !isTemplate() && el.listDetailView.classList.contains('active')) {
+            syncList();
+            startSync();
+          }
+        });
+      }
+    });
+
+    window.addEventListener('online', function() {
+      updateNetBanner();
+      flushOutbox(function() { if (currentListId) syncList(); });
+    });
+    window.addEventListener('offline', updateNetBanner);
+
     // Close any open swipe when tapping elsewhere
     document.addEventListener('touchstart', function(e) {
       if (!e.target.closest('.item-wrap')) {
@@ -1954,40 +2400,80 @@ html, body {
     }, { passive: true });
   }
 
+  function collapseRow(wrapEl, after) {
+    wrapEl.style.transition = 'height 0.2s, opacity 0.2s';
+    wrapEl.style.height = wrapEl.offsetHeight + 'px';
+    requestAnimationFrame(function() {
+      wrapEl.style.height = '0';
+      wrapEl.style.opacity = '0';
+      wrapEl.style.overflow = 'hidden';
+    });
+    setTimeout(after, 250);
+  }
+
+  /* Swipe-delete is the easiest gesture in the app and it destroys data, so it
+     offers a way back instead of a confirm dialog that would slow down the
+     common case. Undo re-creates the item — the row's id is gone for good. */
   function swipeDeleteItem(itemId, wrapEl) {
+    var snapshot = null;
+    for (var i = 0; i < currentItems.length; i++) {
+      if (currentItems[i].id === itemId) { snapshot = currentItems[i]; break; }
+    }
+
     api('DELETE', '/api/lists/' + currentListId + '/items/' + itemId, null, function(err) {
       if (err) { toast('Error: ' + err); return; }
-      wrapEl.style.transition = 'height 0.2s, opacity 0.2s';
-      wrapEl.style.height = wrapEl.offsetHeight + 'px';
-      requestAnimationFrame(function() {
-        wrapEl.style.height = '0';
-        wrapEl.style.opacity = '0';
-        wrapEl.style.overflow = 'hidden';
-      });
-      setTimeout(function() {
+      var listIdAtDelete = currentListId;
+      collapseRow(wrapEl, function() {
         for (var i = 0; i < currentItems.length; i++) {
           if (currentItems[i].id === itemId) { currentItems.splice(i, 1); break; }
         }
         renderItems();
-        toast('Item deleted');
-      }, 250);
+        if (!snapshot) { toast('Item deleted'); return; }
+        toast('Deleted ' + snapshot.name, 'Undo', function() {
+          api('POST', '/api/lists/' + listIdAtDelete + '/items', {
+            name: snapshot.name, quantity: snapshot.quantity, unit: snapshot.unit,
+            category: snapshot.category, notes: snapshot.notes
+          }, function(e2, data) {
+            if (e2) { toast('Could not restore: ' + e2); return; }
+            if (currentListId === listIdAtDelete) {
+              currentItems.push(data);
+              renderItems();
+            }
+            toast('Restored ' + data.name);
+          });
+        });
+      });
     });
   }
 
+  function deleteItemById(itemId) {
+    var wrap = el.itemsContainer.querySelector('.item-wrap[data-id="' + itemId + '"]');
+    if (wrap) { swipeDeleteItem(itemId, wrap); return; }
+    // No wrapper (shopper view) — delete without the collapse animation.
+    api('DELETE', '/api/lists/' + currentListId + '/items/' + itemId, null, function(err) {
+      if (err) { toast('Error: ' + err); return; }
+      for (var i = 0; i < currentItems.length; i++) {
+        if (currentItems[i].id === itemId) { currentItems.splice(i, 1); break; }
+      }
+      renderItems();
+      toast('Item deleted');
+    });
+  }
+
+  /* Deleting a list takes its items with it, so this one keeps the confirm. */
   function swipeDeleteList(listId, wrapEl) {
+    if (!confirm('Delete this list and all its items?')) {
+      wrapEl.classList.remove('swiped');
+      var r = wrapEl.querySelector('.item-row, .list-row');
+      if (r) r.style.transform = '';
+      return;
+    }
     api('DELETE', '/api/lists/' + listId, null, function(err) {
       if (err) { toast('Error: ' + err); return; }
-      wrapEl.style.transition = 'height 0.2s, opacity 0.2s';
-      wrapEl.style.height = wrapEl.offsetHeight + 'px';
-      requestAnimationFrame(function() {
-        wrapEl.style.height = '0';
-        wrapEl.style.opacity = '0';
-        wrapEl.style.overflow = 'hidden';
-      });
-      setTimeout(function() {
+      collapseRow(wrapEl, function() {
         fetchLists();
         toast('List deleted');
-      }, 250);
+      });
     });
   }
 
@@ -2017,14 +2503,32 @@ html, body {
     }
   }
 
+  function registerServiceWorker() {
+    if (!('serviceWorker' in navigator)) return;
+    // Only meaningful when the page is served by the Worker itself; opening
+    // index.html from disk has no scope to register against.
+    if (window.location.protocol !== 'https:' && window.location.hostname !== 'localhost') return;
+    navigator.serviceWorker.register('/sw.js').catch(function() {});
+  }
+
   function init() {
     loadConfig();
     initElements();
+    loadOutbox();
     updateRoleUI();
     initEvents();
     checkVersion();
-    if (config.workerUrl) { fetchLists(); fetchRewardCards(); }
-    else {
+    registerServiceWorker();
+    updateNetBanner();
+
+    // Seed the history stack so the first Back has somewhere to land.
+    try { history.replaceState({ view: 'lists' }, ''); } catch (e) {}
+
+    if (config.workerUrl) {
+      fetchLists();
+      fetchRewardCards();
+      flushOutbox();
+    } else {
       el.listsLoading.style.display = 'none';
       el.listsEmpty.style.display = 'block';
       el.listsEmpty.textContent = 'Set your Worker URL in settings to get started.';
