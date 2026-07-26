@@ -1,130 +1,35 @@
 # Shopping List
 
-Shopping list manager with two roles (maker/shopper), deployed as a Cloudflare Worker.
+Shopping list manager with two roles (maker/shopper), deployed as a Cloudflare Worker over D1. Single-file frontend (`index.html`) + worker (`worker/src/worker.js`); routes and schema are readable there and in `worker/schema.sql`.
 
 ## Commands
 
-- `cd worker && npx wrangler dev` — local dev server at `http://localhost:8787`
-- `cd worker && npx wrangler deploy` — deploy to Cloudflare
-- `cd worker && npm run db:init` — init production D1 database
-- `cd worker && npm run db:init:local` — init local D1 database
-- Or just open `index.html` directly in a browser (no server needed, but needs Worker URL configured)
-
-## Architecture
-
-```
-├── index.html              # Single-file frontend (HTML + CSS + JS)
-├── worker/
-│   ├── wrangler.jsonc      # Worker config (update database_id after creation)
-│   ├── schema.sql          # D1 database schema
-│   ├── public/
-│   │   ├── index.html      # Symlink → ../../index.html (DO NOT replace with a copy)
-│   │   ├── sw.js           # Service worker: offline app shell + cached list data
-│   │   ├── manifest.webmanifest
-│   │   └── icon.svg, icon-180/192/512.png
-│   └── src/
-│       └── worker.js       # Cloudflare Worker: all API routes
-```
-
-**Symlink rule**: `worker/public/index.html` is a symlink to root `index.html`. All edits go to the root file only.
-
-## Roles
-
-- **List Maker**: Full CRUD — create/edit/delete lists and items
-- **Shopper**: Check/uncheck items, search, add items, and receipt scanning. No editing, deleting, or template access.
-- Role is toggled client-side via the badge in the header or in settings
-
-## Features
-
-- CRUD for shopping lists and items
-- Items grouped by category, ordered by supermarket walking order (`CATEGORY_ORDER` in `index.html`), not alphabetically. Uncategorised sorts last. Checked items sink to the bottom of their category.
-- Search/add bar that filters visible items as you type, with deterministic parsing ("2kg chicken" → qty: 2, unit: kg, name: chicken), separate category control, and duplicate detection
-- Receipt scanning via Claude Vision — photographs a store receipt, extracts items, fuzzy-matches against list, and checks off matched items
-- Reward-card photo shortcuts for Woolworths Everyday Rewards and Coles Flybuys
-- Auto-update system via version meta tag
-- JSON export/import from Settings → Data (see below)
-- Every view and overlay pushes a history entry, so hardware/browser Back steps through the app instead of leaving it
-
-## Export / Import
-
-Settings → Data. Mirrors the recipes app.
-
-- Export downloads `shopping-list-YYYY-MM-DD.json`: `{ version, exported_at, lists: [{ name, is_template, created_at, items: [...] }] }`. Checked/selected state is preserved.
-- `EXPORT_VERSION` in `worker/src/worker.js` is the format version. Bump it when the payload shape changes; import rejects files stamped newer than it understands.
-- **Import only ever adds.** It creates new lists and never updates or deletes, so importing the same file twice gives you two copies. This is deliberate — it means an import can't destroy existing data. Entries with a blank name are skipped and counted.
-- Reward cards are excluded: they're photos of loyalty barcodes, and exports get emailed around.
-
-## Offline behaviour
-
-The app is used inside supermarkets, so it has to survive bad signal:
-
-- `sw.js` caches the app shell (network-first, so the auto-update check still works) and successful `GET /api/*` responses, so the last-viewed list is readable with no connection.
-- Check/uncheck is optimistic. If the write fails at the network layer it goes into an outbox in `localStorage` (`shopping_list_outbox`) and replays on `online`, on tab focus, and after a settings save. A banner shows the pending count.
-- `syncList` skips polling while the outbox is non-empty, so queued local state is never overwritten by the server.
-- Polling pauses on `visibilitychange` and catches up when the tab is shown again.
-
-## API Routes
-
-| Method | Path | Auth | Purpose |
-|--------|------|------|---------|
-| GET | `/api/health` | No | Health check |
-| GET | `/api/lists` | Yes | List all lists with item counts |
-| GET | `/api/lists/:id` | Yes | Get list with all items |
-| POST | `/api/lists` | Yes | Create list |
-| PUT | `/api/lists/:id` | Yes | Update list |
-| DELETE | `/api/lists/:id` | Yes | Delete list + items |
-| POST | `/api/lists/:id/duplicate` | Yes | Duplicate a list |
-| POST | `/api/lists/:id/create-shop` | Yes | Create a dated shopping list from a template |
-| POST | `/api/lists/:id/items` | Yes | Create item |
-| PUT | `/api/lists/:id/items/:itemId` | Yes | Update item, toggle checked, or toggle selected |
-| DELETE | `/api/lists/:id/items/:itemId` | Yes | Delete item |
-| GET | `/api/export` | Yes | Export all lists + items as JSON (excludes reward cards) |
-| POST | `/api/import` | Yes | Import lists + items; always creates new, never overwrites |
-| POST | `/api/scan-receipt` | Yes | Scan receipt photo(s) with Claude Vision |
-| GET | `/api/reward-cards` | Yes | List all reward cards with images |
-| PUT | `/api/reward-cards` | Yes | Upload/replace a reward card photo (multipart/form-data) |
-| DELETE | `/api/reward-cards/:store` | Yes | Remove a reward card |
-
-## Database Schema
-
-- **lists**: id, name, is_template, created_at, updated_at
-- **items**: id, list_id, name, quantity, unit, category, notes, checked, checked_by, selected, created_at
-- **reward_cards**: id, store_name (unique), image_data (base64), media_type, created_at, updated_at
-
-## Version Bumping
-
-`index.html` has `<meta name="app-version" content="X.Y.Z">`. Bump this (semver) whenever changing `index.html`.
-
-Also bump `VERSION` in `worker/public/sw.js` when the cached shell changes — it names the caches, so a stale value leaves users on the old shell until they hit the reload button.
-
-## Secrets Required
-
-- `DASHBOARD_TOKEN` (required) — auth token for all API operations (except health check)
-- `ANTHROPIC_API_KEY` — for receipt scanning via Claude Vision
-
-## Setup
-
 ```bash
-# Create D1 database
-cd worker && npx wrangler d1 create shopping-list-db
-# Copy the database_id into wrangler.jsonc
-
-# Init schema
-npm run db:init        # production
-npm run db:init:local  # local dev
-
-# Set secrets
-npx wrangler secret put DASHBOARD_TOKEN
-npx wrangler secret put ANTHROPIC_API_KEY
-
-# Deploy
-npx wrangler deploy
+cd worker && npx wrangler dev          # local dev at http://localhost:8787
+cd worker && npx wrangler deploy
+cd worker && npm run db:init           # init production D1
+cd worker && npm run db:init:local
 ```
+
+Setup from scratch: `npx wrangler d1 create shopping-list-db` (copy the id into `wrangler.jsonc`), init the schema, then `npx wrangler secret put DASHBOARD_TOKEN` and `ANTHROPIC_API_KEY` (receipt scanning via Claude Vision).
+
+## Critical rules
+
+- **`worker/public/index.html` is a symlink to the root `index.html`** — all edits go to the root file.
+- **Two version bumps, not one**: `<meta name="app-version">` in `index.html` on every frontend change, **and** `VERSION` in `worker/public/sw.js` whenever the cached shell changes — it names the caches, and a stale value leaves users on the old shell until they manually reload.
+- **Import only ever adds.** It creates lists, never updates or deletes — importing the same file twice deliberately gives two copies, so an import can never destroy data. Keep that property. `EXPORT_VERSION` in `worker/src/worker.js` stamps the format; bump it when the payload shape changes (import rejects files stamped newer than it understands).
+- **Reward cards are excluded from export** — they're photos of loyalty barcodes and exports get emailed around.
+- **The offline outbox owns local state.** Check/uncheck is optimistic; failed writes queue in localStorage `shopping_list_outbox` and replay on `online`, tab focus, and after settings save. `syncList` **skips polling while the outbox is non-empty** so queued local changes are never overwritten by the server — don't "fix" that.
+
+## Roles and behaviour
+
+- **List Maker**: full CRUD on lists/items/templates. **Shopper**: check/uncheck, search, add, receipt scanning — no editing, deleting, or template access. Role toggles client-side (header badge or settings).
+- Items group by category in supermarket walking order (`CATEGORY_ORDER` in `index.html`), not alphabetically; Uncategorised sorts last; checked items sink to the bottom of their category.
+- Search/add bar parses deterministically ("2kg chicken" → qty 2, unit kg, name chicken) with duplicate detection.
+- Receipt scanning photographs a receipt, extracts items via Claude Vision, fuzzy-matches, and checks off matches.
+- Every view and overlay pushes a history entry, so hardware/browser Back steps through the app instead of leaving it.
+- The service worker caches the app shell **network-first** (so the auto-update check still works) and successful `GET /api/*` responses; polling pauses on `visibilitychange`.
 
 ## Design
 
-Dark navy theme matching brisbane-dashboard and recipes app:
-- Background: `#1a1a2e` → `#16213e` gradient
-- Accent: `#4ade80` green
-- CSS custom properties throughout
-- System font stack, mobile-first, safe area support
+Dark navy theme matching brisbane-dashboard and recipes: `#1a1a2e` → `#16213e` gradient, `#4ade80` green accent, CSS custom properties, mobile-first, safe-area support.
