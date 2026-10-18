@@ -9,6 +9,6 @@
     "db:init:local": "wrangler d1 execute shopping-list-db --file=schema.sql --local"
   },
   "devDependencies": {
-    "wrangler": "^3.0.0"
+    "wrangler": "^4.151.1"
   }
 }
